@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Load environment variables
 load_dotenv()
@@ -33,17 +35,55 @@ class TMDBDataFetcher:
         # Streaming service provider IDs from TMDB
         self.providers = {
             "Netflix": 8,
-            "Disney+": 2739,
+            "Disney+": 337,
             "Hulu": 15,
-            "Max": 1899,
+            "HBO Max": 1899,
             "Paramount+": 531,
-            "Apple TV+": 350
+            "Apple TV+": 350,
+            "Peacock": 386
         }
         
         self.movies = {}
         self.movies_lock = threading.Lock()
-        self.rate_limit_delay = 0.1  # 10 requests per second (increased for parallelization)
+        self.rate_limit_delay = 0.05  # 20 requests per second (optimized)
         self.max_workers = max_workers
+        self.last_request_time = 0
+        self.min_request_interval = 0.05
+        
+        # Create session with retry strategy
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=0.3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # Rotate user agents
+        self.user_agents = [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ]
+        self.current_ua_index = 0
+    
+    def _rate_limit(self):
+        """Rate limiting for API requests."""
+        current_time = time.time()
+        elapsed = current_time - self.last_request_time
+        if elapsed < self.min_request_interval:
+            time.sleep(self.min_request_interval - elapsed)
+        self.last_request_time = time.time()
+    
+    def _get_headers(self):
+        """Get headers with user agent rotation."""
+        self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
+        headers = self.headers.copy()
+        headers['User-Agent'] = self.user_agents[self.current_ua_index]
+        return headers
 
     def get_movies_by_provider(self, provider_id: int, provider_name: str) -> List[Dict]:
         """Fetch movies available on a specific streaming service."""
@@ -62,7 +102,11 @@ class TMDBDataFetcher:
                     "include_video": False
                 }
                 
-                response = requests.get(url, headers=self.headers, params=params)
+                # Use rate limiting and session
+                self._rate_limit()
+                headers = self._get_headers()
+                
+                response = self.session.get(url, headers=headers, params=params, timeout=(5, 10))
                 response.raise_for_status()
                 
                 data = response.json()
@@ -79,6 +123,7 @@ class TMDBDataFetcher:
                                 "id": movie_id,
                                 "title": movie.get('title', ''),
                                 "original_title": movie.get('original_title', ''),
+                                "original_language": movie.get('original_language', ''),
                                 "release_date": movie.get('release_date', ''),
                                 "release_year": self._extract_year(movie.get('release_date', '')),
                                 "genres": [],
@@ -116,10 +161,10 @@ class TMDBDataFetcher:
                             self.movies[movie_id]["streaming"].append(streaming_entry)
                 
                 page += 1
-                time.sleep(self.rate_limit_delay)
+                # Remove the separate sleep since we have rate limiting in _rate_limit()
                 
             except requests.exceptions.RequestException as e:
-                print(f"Error fetching data for {provider_name}: {e}")
+                # Silent error handling for speed
                 break
         
         return movies
@@ -133,7 +178,11 @@ class TMDBDataFetcher:
                 "append_to_response": "credits,keywords,images"
             }
             
-            response = requests.get(url, headers=self.headers, params=params)
+            # Use rate limiting and session
+            self._rate_limit()
+            headers = self._get_headers()
+            
+            response = self.session.get(url, headers=headers, params=params, timeout=(5, 10))
             response.raise_for_status()
             
             data = response.json()
@@ -184,10 +233,11 @@ class TMDBDataFetcher:
                         if backdrop_path:
                             movie["media"]["backdrop"] = f"https://image.tmdb.org/t/p/original{backdrop_path}"
                 
-                time.sleep(self.rate_limit_delay)
+                # Remove separate sleep since we have rate limiting in _rate_limit()
                 
         except requests.exceptions.RequestException as e:
-            print(f"Error enriching movie {movie_id}: {e}")
+            # Silent error handling for speed
+            pass
 
     def fetch_provider_data_parallel(self, provider_name: str, provider_id: int):
         """Fetch data for a single provider (for parallel execution)."""

@@ -6,21 +6,16 @@
 
 set -e  # Exit on any error
 
-echo "🎬 STINGER V3 Data Pipeline (Parallelized)"
+echo "STINGER V3 Data Pipeline (Parallelized)"
 echo "=========================================="
 
-# Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo "📦 Creating Python virtual environment..."
-    python3 -m venv venv
-fi
 
 # Activate virtual environment
-echo "🔧 Activating virtual environment..."
+echo "Activating virtual environment..."
 source venv/bin/activate
 
 # Install dependencies
-echo "📥 Installing Python dependencies..."
+echo "Installing Python dependencies..."
 pip install -r requirements.txt
 
 # Check for .env file
@@ -32,7 +27,7 @@ fi
 
 # Step 1: Fetch TMDB data (parallelized)
 echo ""
-echo "🎯 Step 1: Fetching TMDB movie data (parallelized)..."
+echo "Step 1: Fetching TMDB movie data (parallelized)..."
 python fetch_tmdb_data.py
 
 if [ ! -f "tmdb_movies.json" ]; then
@@ -42,7 +37,7 @@ fi
 
 # Step 2: Add Rotten Tomatoes ratings (using rottentomatoes-python library)
 echo ""
-echo "🍅 Step 2: Adding Rotten Tomatoes ratings (web scraping)..."
+echo "Step 2: Adding Rotten Tomatoes ratings (web scraping)..."
 python fetch_rotten_tomatoes_data.py
 if [ -f "tmdb_movies_with_ratings.json" ]; then
     echo "✅ Rotten Tomatoes ratings added via web scraping"
@@ -53,7 +48,7 @@ fi
 
 # Step 3: Add YouTube trailer links (web scraping, no API key needed)
 echo ""
-echo "🎥 Step 3: Adding YouTube trailer links (web scraping)..."
+echo "Step 3: Adding YouTube trailer links (web scraping)..."
 python fetch_trailer_link.py
 if [ -f "movie_data.json" ]; then
     echo "✅ YouTube trailer links added via web scraping"
@@ -69,7 +64,7 @@ fi
 
 # Step 4: Validate and finalize
 echo ""
-echo "🔍 Step 4: Validating final dataset..."
+echo "Step 4: Validating final dataset..."
 
 if [ -f "movie_data.json" ]; then
     # Count movies
@@ -78,33 +73,22 @@ if [ -f "movie_data.json" ]; then
     
     # Count movies with ratings
     movies_with_ratings=$(python -c "import json; data=json.load(open('movie_data.json')); print(sum(1 for m in data.get('movies', []) if m.get('ratings', {}).get('rt_tomatometer', 0) > 0))")
-    echo "🍅 Movies with Rotten Tomatoes ratings: $movies_with_ratings"
+    echo "Movies with Rotten Tomatoes ratings: $movies_with_ratings"
     
     # Count movies with trailers
     movies_with_trailers=$(python -c "import json; data=json.load(open('movie_data.json')); print(sum(1 for m in data.get('movies', []) if m.get('media', {}).get('trailer_youtube')))")
-    echo "🎥 Movies with trailers: $movies_with_trailers"
+    echo "Movies with trailers: $movies_with_trailers"
     
     # Copy to public directory for web app
-    echo "📁 Copying to public directory..."
+    echo "Copying to public directory..."
     cp movie_data.json ../public/movie_data.json
     
     echo ""
-    echo "🎉 Data pipeline completed successfully!"
-    echo "📊 Dataset: $movie_count movies"
-    echo "🍅 Ratings: $movies_with_ratings movies"
-    echo "🎥 Trailers: $movies_with_trailers movies"
-    echo "📁 Output: public/movie_data.json"
-    echo ""
-    echo "Performance improvements:"
-    echo "✅ Parallelized TMDB data fetching"
-    echo "✅ Parallelized movie enrichment"
-    echo "✅ Rotten Tomatoes web scraping (no API key needed)"
-    echo "✅ YouTube web scraping (no API key needed)"
-    echo ""
-    echo "Next steps:"
-    echo "1. Run 'npm install' in the project root"
-    echo "2. Run 'npm run dev' to start the development server"
-    echo "3. Open http://localhost:3000 to view the app"
+    echo "Data pipeline completed successfully!"
+    echo "Dataset: $movie_count movies"
+    echo "Ratings: $movies_with_ratings movies"
+    echo "Trailers: $movies_with_trailers movies"
+    echo "Output: public/movie_data.json"
     
 else
     echo "❌ Error: movie_data.json was not created"
@@ -115,4 +99,4 @@ fi
 deactivate
 
 echo ""
-echo "✨ Pipeline complete!"
+echo "Pipeline complete!"

@@ -15,18 +15,60 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from urllib.parse import quote_plus
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Load environment variables
 load_dotenv()
 
 class TrailerLinkFetcher:
     def __init__(self, max_workers=10):
-        self.rate_limit_delay = 0.2  # 5 requests per second
+        self.rate_limit_delay = 0.05  # 20 requests per second (optimized)
         self.max_workers = max_workers
+        self.last_request_time = 0
+        self.min_request_interval = 0.05
+        
+        # Create session with retry strategy
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
+        retry_strategy = Retry(
+            total=2,
+            backoff_factor=0.3,
+            status_forcelist=[403, 429, 500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # Rotate user agents to avoid detection
+        self.user_agents = [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ]
+        self.current_ua_index = 0
+    
+    def _rate_limit(self):
+        """Rate limiting for requests."""
+        current_time = time.time()
+        elapsed = current_time - self.last_request_time
+        if elapsed < self.min_request_interval:
+            time.sleep(self.min_request_interval - elapsed)
+        self.last_request_time = time.time()
+    
+    def _get_headers(self):
+        """Get headers with user agent rotation."""
+        self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
+        return {
+            'User-Agent': self.user_agents[self.current_ua_index],
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
         
     def search_trailer(self, title: str, year: int) -> Optional[str]:
         """Search for a movie trailer on YouTube using web scraping."""
@@ -38,8 +80,12 @@ class TrailerLinkFetcher:
             # YouTube search URL
             search_url = f"https://www.youtube.com/results?search_query={encoded_query}&sp=EgIQAQ%253D%253D"  # Filter for videos
             
+            # Use rate limiting and fresh headers
+            self._rate_limit()
+            headers = self._get_headers()
+            
             # Get search results page
-            response = self.session.get(search_url, timeout=10)
+            response = self.session.get(search_url, headers=headers, timeout=(5, 10))
             response.raise_for_status()
             
             # Extract video IDs from the page
@@ -53,25 +99,31 @@ class TrailerLinkFetcher:
             return None
             
         except requests.exceptions.RequestException as e:
-            print(f"Error searching for trailer for {title}: {e}")
+            # Silent error handling for speed
             return None
         except Exception as e:
-            print(f"Unexpected error for {title}: {e}")
+            # Silent error handling for speed
             return None
     
     def _extract_video_ids(self, html_content: str) -> List[str]:
-        """Extract YouTube video IDs from HTML content."""
-        # Multiple patterns to try for extracting video IDs
-        patterns = [
-            r'"videoId":"([a-zA-Z0-9_-]{11})"',
+        """Extract YouTube video IDs from HTML content, avoiding ads."""
+        # Look for video renderer objects (actual videos, not ads)
+        # Ads are typically in "adSlotRenderer" while videos are in "videoRenderer"
+        video_renderer_pattern = r'"videoRenderer".*?"videoId":"([a-zA-Z0-9_-]{11})"'
+        matches = re.findall(video_renderer_pattern, html_content)
+        
+        if matches:
+            return matches[:5]  # Return top 5 video results
+        
+        # Fallback patterns if videoRenderer pattern doesn't work
+        fallback_patterns = [
             r'watch\?v=([a-zA-Z0-9_-]{11})',
             r'/watch\?v=([a-zA-Z0-9_-]{11})',
-            r'embed/([a-zA-Z0-9_-]{11})',
-            r'data-video-id="([a-zA-Z0-9_-]{11})"'
+            r'embed/([a-zA-Z0-9_-]{11})'
         ]
         
         video_ids = []
-        for pattern in patterns:
+        for pattern in fallback_patterns:
             matches = re.findall(pattern, html_content)
             video_ids.extend(matches)
         
@@ -95,7 +147,7 @@ class TrailerLinkFetcher:
             if trailer_link:
                 movie['media']['trailer_youtube'] = trailer_link
         
-        time.sleep(self.rate_limit_delay)
+        # Remove the separate sleep since we have rate limiting in _rate_limit()
         return movie
     
     def update_movie_trailers(self, movies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
