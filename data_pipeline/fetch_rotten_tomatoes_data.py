@@ -23,20 +23,21 @@ from urllib3.util.retry import Retry
 load_dotenv()
 
 class RottenTomatoesDataFetcher:
-    def __init__(self, max_workers=10):  # Reduced workers to avoid overwhelming RT
-        self.rate_limit_delay = 0.1  # Minimal delay for speed
+    def __init__(self, max_workers=20):  # Increased workers like streamlined fetcher
+        self.rate_limit_delay = 0.05  # Faster rate like streamlined fetcher
         self.max_workers = max_workers
         self.movies_lock = threading.Lock()
         self.processed_count = 0
         self.success_count = 0
         self.last_request_time = 0
         self.min_request_interval = 0.05  # 20 requests per second max
+        self.timeout = (5, 10)  # Use timeout like streamlined fetcher
         
-        # Create session with retry strategy like TMDB fetcher
+        # Create session with retry strategy like streamlined fetcher
         self.session = requests.Session()
         retry_strategy = Retry(
-            total=2,
-            backoff_factor=0.3,
+            total=3,
+            backoff_factor=0.5,
             status_forcelist=[403, 429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
@@ -52,6 +53,39 @@ class RottenTomatoesDataFetcher:
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         ]
         self.current_ua_index = 0
+    
+    def _rate_limit(self):
+        """Simple rate limiting like streamlined fetcher."""
+        current_time = time.time()
+        elapsed = current_time - self.last_request_time
+        if elapsed < self.min_request_interval:
+            time.sleep(self.min_request_interval - elapsed)
+        self.last_request_time = time.time()
+    
+    def process_movie_batch(self, movies_batch):
+        """Process a batch of movies for RT ratings."""
+        results = []
+        for movie in movies_batch:
+            try:
+                title = movie.get('title', '')
+                year = movie.get('release_year', 0)
+                
+                if title and year:
+                    rt_data = self.search_movie(title, year)
+                    if rt_data.get('tomatometer', 0) > 0 or rt_data.get('audience', 0) > 0:
+                        movie['ratings']['rt_tomatometer'] = rt_data.get('tomatometer', 0)
+                        movie['ratings']['rt_audience'] = rt_data.get('audience', 0)
+                        
+                        with self.movies_lock:
+                            self.success_count += 1
+                
+                results.append(movie)
+                
+            except Exception as e:
+                print(f"Error processing {movie.get('title', 'Unknown')}: {e}")
+                results.append(movie)
+        
+        return results
     
     def _rate_limit(self):
         """Simple rate limiting like TMDB fetcher."""
@@ -88,21 +122,45 @@ class RottenTomatoesDataFetcher:
             clean_title = re.sub(r'[^\w\s-]', '', title).strip()
             url_title = re.sub(r'\s+', '_', clean_title.lower())
             
+            # Handle articles at the beginning (The, A, An) - RT often drops these
+            url_title_no_articles = re.sub(r'^(the_|a_|an_)', '', url_title)
+            
+            # Additional variations for better matching
+            url_title_compact = re.sub(r'_+', '_', url_title.replace('_the_', '_').replace('_a_', '_').replace('_an_', '_')).strip('_')
+            url_title_no_spaces = title.lower().replace(' ', '').replace(':', '').replace("'", '').replace('-', '').replace('.', '')
+            
             # Try comprehensive URL patterns for Rotten Tomatoes
             possible_urls = [
+                # Try without leading articles first (most common pattern)
+                f"https://www.rottentomatoes.com/m/{url_title_no_articles}",
+                f"https://www.rottentomatoes.com/m/{url_title_no_articles}_{year}",
+                # Then try with articles
                 f"https://www.rottentomatoes.com/m/{url_title}",
                 f"https://www.rottentomatoes.com/m/{url_title}_{year}",
+                # Compact versions (remove extra underscores)
+                f"https://www.rottentomatoes.com/m/{url_title_compact}",
+                f"https://www.rottentomatoes.com/m/{url_title_compact}_{year}",
+                # No spaces at all
+                f"https://www.rottentomatoes.com/m/{url_title_no_spaces}",
+                # Other variations
                 f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}",
+                f"https://www.rottentomatoes.com/m/{url_title_no_articles.replace('_', '')}",
                 f"https://www.rottentomatoes.com/m/{url_title.replace('_', '-')}",
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_the_', '_')}",
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_a_', '_')}",
-                f"https://www.rottentomatoes.com/m/{re.sub(r'_the_|_a_|_an_', '_', url_title)}",
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}_{year}",
+                f"https://www.rottentomatoes.com/m/{url_title_no_articles.replace('_', '-')}",
+                # Legacy patterns
                 f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '_').replace(':', '').replace("'", '')}",
                 f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '').replace(':', '').replace("'", '')}"
             ]
             
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_urls = []
             for url in possible_urls:
+                if url not in seen:
+                    seen.add(url)
+                    unique_urls.append(url)
+            
+            for url in unique_urls:
                 try:
                     # Use rate limiting like TMDB fetcher
                     self._rate_limit()
@@ -229,28 +287,61 @@ class RottenTomatoesDataFetcher:
         return movie
     
     def update_movie_ratings(self, movies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Update movie data with Rotten Tomatoes ratings using parallel processing."""
-        print("Fetching Rotten Tomatoes ratings (web scraping)...")
+        """Update movie data with Rotten Tomatoes ratings using streamlined batch processing."""
+        start_time = time.time()
+        print(f"🍅 Starting Rotten Tomatoes ratings fetch for {len(movies)} movies...")
+        print(f"   Using {self.max_workers} parallel workers")
         
-        # Use parallel processing for better performance
+        # Split into batches like streamlined fetcher
+        batch_size = max(1, len(movies) // self.max_workers)
+        batches = [movies[i:i + batch_size] for i in range(0, len(movies), batch_size)]
+        
+        print(f"   Processing {len(batches)} batches (avg {batch_size} movies per batch)")
+        
+        # Process batches in parallel
+        all_results = []
+        
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = []
-            for movie in movies:
-                future = executor.submit(self.search_movie_parallel, movie)
-                futures.append(future)
+            future_to_batch = {
+                executor.submit(self.process_movie_batch, batch): batch
+                for batch in batches
+            }
             
-            # Progress bar for ratings fetching
-            updated_movies = []
-            with tqdm(total=len(futures), desc="Updating ratings") as pbar:
-                for future in as_completed(futures):
-                    try:
-                        updated_movie = future.result()
-                        updated_movies.append(updated_movie)
-                    except Exception as e:
-                        print(f"Error in ratings search: {e}")
-                    pbar.update(1)
+            progress_bar = tqdm(total=len(movies), desc="🍅 Fetching RT ratings", unit="movies")
+            
+            for future in as_completed(future_to_batch):
+                batch = future_to_batch[future]
+                
+                try:
+                    batch_results = future.result()
+                    all_results.extend(batch_results)
+                    
+                    progress_bar.update(len(batch_results))
+                    
+                    elapsed_time = time.time() - start_time
+                    rate = len(all_results) / elapsed_time if elapsed_time > 0 else 0
+                    progress_bar.set_description(f"🍅 Fetching RT ratings ({rate:.1f} movies/sec)")
+                    
+                except Exception as e:
+                    print(f"Batch processing error: {e}")
+                    # Add error placeholders for the entire batch
+                    all_results.extend(batch)
+                    progress_bar.update(len(batch))
+            
+            progress_bar.close()
         
-        return updated_movies
+        # Final stats like streamlined fetcher
+        elapsed_time = time.time() - start_time
+        rate = len(all_results) / elapsed_time
+        
+        print(f"\n🍅 ROTTEN TOMATOES RATINGS FETCH COMPLETE")
+        print(f"   Total time: {elapsed_time:.1f} seconds")
+        print(f"   Rate: {rate:.1f} movies per second")
+        print(f"   Total processed: {len(all_results)}")
+        print(f"   Successfully found ratings: {self.success_count}")
+        print(f"   Success rate: {self.success_count/len(all_results)*100:.1f}%")
+        
+        return all_results
 
 def main():
     """Main function to update movie data with Rotten Tomatoes ratings."""
@@ -269,8 +360,10 @@ def main():
             print("No movies found in data.")
             return 1
         
-        # Update with RT ratings
-        fetcher = RottenTomatoesDataFetcher(max_workers=10)  # Optimized worker count
+        print(f"Processing {len(movies)} movies...")
+        
+        # Update with Rotten Tomatoes ratings using streamlined approach
+        fetcher = RottenTomatoesDataFetcher(max_workers=20)  # Increased workers
         updated_movies = fetcher.update_movie_ratings(movies)
         
         # Save updated data
@@ -281,7 +374,7 @@ def main():
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
-        print(f"\nUpdated data saved to {output_file}")
+        print(f"\nData with Rotten Tomatoes ratings saved to {output_file}")
         print(f"Total movies: {len(updated_movies)}")
         
         # Count movies with ratings

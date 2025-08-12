@@ -50,7 +50,7 @@ const MovieGrid = () => {
   }
 
   return (
-    <div className="layout">
+    <div className={`layout ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <Filters />
       </aside>
@@ -62,6 +62,13 @@ const MovieGrid = () => {
       
       <main className="content">
         <div className="results-info">
+          <button 
+            className="mobile-menu-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle filters"
+          >
+            ☰
+          </button>
           <div className="results-count">
             {filteredMovies.length.toLocaleString()} results found
           </div>

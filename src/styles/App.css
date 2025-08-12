@@ -1,3 +1,7 @@
+/* ==========================================================================
+   BASE LAYOUT & APP STRUCTURE
+   ========================================================================== */
+
 .app {
   min-height: 100vh;
   display: flex;
@@ -9,6 +13,10 @@
   flex: 1;
   padding-top: 60px;
 }
+
+/* ==========================================================================
+   HEADER NAVIGATION & SEARCH
+   ========================================================================== */
 
 /* Header */
 .header {
@@ -45,6 +53,7 @@
   font-size: 1.75rem;
   font-weight: 700;
   font-family: var(--font-family);
+  font-style: italic;
   color: var(--text-primary);
   margin: 0;
   line-height: 1;
@@ -73,7 +82,11 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
+}
+
+.header__sidebar-toggle {
+  display: none;
 }
 
 .header__nav {
@@ -100,7 +113,7 @@
 .header__sort-toggle {
   color: var(--text-secondary);
   font-weight: 500;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-sm);
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
   cursor: pointer;
@@ -108,7 +121,7 @@
 
 .header__sort-toggle:hover {
   color: var(--text-primary);
-  background-color: var(--secondary-color);
+  background-color: var(--secondary-color-color);
 }
 
 .header__sort-controls {
@@ -219,6 +232,7 @@
 
 .header__search {
   position: relative;
+  margin-left: calc(var(--spacing-md) * -0.25);
 }
 
 .header__search-input {
@@ -279,27 +293,46 @@
   }
 }
 
+/* ==========================================================================
+   LAYOUT COMPONENTS - SIDEBAR & CONTENT GRID
+   ========================================================================== */
+
 /* Layout components */
 .layout {
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: var(--spacing-xl);
   min-height: calc(100vh - 60px);
+  transition: grid-template-columns var(--transition-normal);
+}
+
+.layout.sidebar-collapsed {
+  grid-template-columns: 1fr;
+}
+
+.layout.sidebar-collapsed .sidebar {
+  display: none;
 }
 
 .sidebar {
   background-color: var(--background-light);
   border-right: 1px solid var(--border-color);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-lg);
   overflow-y: auto;
   position: sticky;
   top: 80px;
   height: calc(100vh - 80px);
+  transition: all var(--transition-normal);
 }
 
 .content {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-lg) 0;
   overflow-y: auto;
+  position: relative;
+}
+
+.layout.sidebar-collapsed .content {
+  padding-left: var(--spacing-lg);
 }
 
 /* Responsive layout */
@@ -328,17 +361,22 @@
   }
 }
 
+/* ==========================================================================
+   MOVIE GRID & CARDS
+   ========================================================================== */
+
 /* Movie grid */
 .movie-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--spacing-md);
-  padding: var(--spacing-lg) 0;
+  padding: var(--spacing-sm) 0;
+  justify-content: center;
 }
 
 @media (max-width: 768px) {
   .movie-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: var(--spacing-md);
   }
 }
@@ -350,6 +388,11 @@
   overflow: hidden;
   cursor: pointer;
   position: relative;
+  transition: transform 0.3s ease;
+}
+
+.movie-card:hover {
+  transform: scale(1.05);
 }
 
 .movie-card__poster-container {
@@ -422,6 +465,10 @@
   font-size: var(--font-size-xs);
 }
 
+/* ==========================================================================
+   SEARCH BAR
+   ========================================================================== */
+
 /* Search bar */
 .search-container {
   position: relative;
@@ -455,16 +502,13 @@
   height: 16px;
 }
 
+/* ==========================================================================
+   FILTER SIDEBAR COMPONENTS
+   ========================================================================== */
+
 /* Filters */
 .filters-section {
-  margin-bottom: var(--spacing-xl);
-}
-
-.filters-section__title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  margin-bottom: var(--spacing-md);
-  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
 }
 
 .filter-group {
@@ -474,33 +518,161 @@
 .filter-group__label {
   display: block;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 700;
   margin-bottom: var(--spacing-sm);
   color: var(--text-secondary);
+}
+
+.filter-group__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: var(--spacing-xs);
+  transition: all var(--transition-fast);
+}
+
+.filter-group__header:hover {
+  color: var(--accent-color);
+}
+
+.filter-group__header:hover .filter-group__label {
+  color: var(--accent-color);
+}
+
+.filter-group__toggle {
+  font-size: var(--font-size-xs);
+  transition: transform var(--transition-fast);
+  color: var(--text-secondary);
+}
+
+.filter-group__toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.filter-group__content {
+  margin-left: var(--spacing-sm);
+}
+
+.filter-clear {
+  margin-top: var(--spacing-sm);
+  width: 100%;
+}
+
+.filter-clear:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.filters__footer {
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.filters__footer .btn {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--primary-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filters__footer .btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 .filter-checkbox {
   display: flex;
   align-items: center;
   margin-bottom: var(--spacing-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-checkbox:hover {
+  color: var(--accent-color);
 }
 
 .filter-checkbox input[type="checkbox"] {
-  margin-right: var(--spacing-sm);
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-color);
+  display: none;
 }
 
 .filter-checkbox label {
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   cursor: pointer;
+  transition: color var(--transition-fast);
 }
+
+.filter-checkbox:hover label {
+  color: var(--accent-color);
+}
+
+.filter-checkbox input[type="checkbox"]:checked + label {
+  color: var(--accent-color);
+}
+
+/* Streaming service brand colors */
+.filter-checkbox[data-service="Apple TV+"]:hover,
+.filter-checkbox[data-service="Apple TV+"]:hover label,
+.filter-checkbox[data-service="Apple TV+"] input[type="checkbox"]:checked + label {
+  color: #A6A6A6;
+}
+
+.filter-checkbox[data-service="Disney+"]:hover,
+.filter-checkbox[data-service="Disney+"]:hover label,
+.filter-checkbox[data-service="Disney+"] input[type="checkbox"]:checked + label {
+  color: #4A90E2;
+}
+
+.filter-checkbox[data-service="HBO Max"]:hover,
+.filter-checkbox[data-service="HBO Max"]:hover label,
+.filter-checkbox[data-service="HBO Max"] input[type="checkbox"]:checked + label {
+  color: #A855F7;
+}
+
+.filter-checkbox[data-service="Hulu"]:hover,
+.filter-checkbox[data-service="Hulu"]:hover label,
+.filter-checkbox[data-service="Hulu"] input[type="checkbox"]:checked + label {
+  color: #1CE783;
+}
+
+.filter-checkbox[data-service="Netflix"]:hover,
+.filter-checkbox[data-service="Netflix"]:hover label,
+.filter-checkbox[data-service="Netflix"] input[type="checkbox"]:checked + label {
+  color: #E50914;
+}
+
+.filter-checkbox[data-service="Paramount+"]:hover,
+.filter-checkbox[data-service="Paramount+"]:hover label,
+.filter-checkbox[data-service="Paramount+"] input[type="checkbox"]:checked + label {
+  color: #3B82F6;
+}
+
+.filter-checkbox[data-service="Peacock"]:hover,
+.filter-checkbox[data-service="Peacock"]:hover label,
+.filter-checkbox[data-service="Peacock"] input[type="checkbox"]:checked + label {
+  background: linear-gradient(45deg, #FF6B35, #F7931E, #FFD23F, #009739, #0099CC, #9A4C95);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ==========================================================================
+   RANGE SLIDERS (YEAR & RATING)
+   ========================================================================== */
 
 /* Range sliders */
 .range-slider {
-  width: 100%;
+  width: 95%;
   margin: var(--spacing-md) 0;
 }
 
@@ -519,10 +691,10 @@
 }
 
 .range-slider__thumb {
-  width: 20px;
+  width: 10px;
   height: 20px;
   background-color: var(--accent-color);
-  border-radius: 50%;
+  border-radius: 6px;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -540,15 +712,20 @@
   margin-top: var(--spacing-sm);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+  width: 105%;
 }
+
+/* ==========================================================================
+   RESULTS INFO & SORT CONTROLS
+   ========================================================================== */
 
 /* Results info */
 .results-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
   background-color: var(--background-light);
   border-radius: var(--radius-md);
 }
@@ -594,6 +771,10 @@
   border-color: var(--accent-color);
 }
 
+/* ==========================================================================
+   PAGINATION CONTROLS
+   ========================================================================== */
+
 /* Pagination */
 .pagination {
   display: flex;
@@ -604,7 +785,7 @@
 }
 
 .pagination-button {
-  background-color: var(--secondary-color);
+  background-color: var(--primary-color);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -626,6 +807,10 @@
   background-color: var(--accent-color);
   border-color: var(--accent-color);
 }
+
+/* ==========================================================================
+   LOADING & EMPTY STATES
+   ========================================================================== */
 
 /* Loading states */
 .loading-overlay {
@@ -676,20 +861,23 @@
   margin-bottom: var(--spacing-lg);
 }
 
+/* ==========================================================================
+   MOBILE NAVIGATION
+   ========================================================================== */
+
 /* Mobile menu toggle */
 .mobile-menu-toggle {
-  display: none;
+  display: block;
   background: none;
   border: none;
   color: var(--text-primary);
   font-size: var(--font-size-xl);
   cursor: pointer;
-  padding: var(--spacing-sm);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-normal);
 }
 
 .mobile-menu-toggle:hover {
-  background-color: var(--secondary-color);
+  color: var(--accent-color);
 }
 
 @media (max-width: 1024px) {
@@ -709,13 +897,24 @@
   z-index: 999;
   opacity: 0;
   visibility: hidden;
-  transition: all var(--transition-normal);
+  transition: all var(--transition-slow);
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-overlay {
+    display: block;
+  }
 }
 
 .mobile-overlay.open {
   opacity: 1;
   visibility: visible;
 }
+
+/* ==========================================================================
+   BUTTON STYLES & UTILITIES
+   ========================================================================== */
 
 /* Pagination ellipsis */
 .pagination-ellipsis {
@@ -724,17 +923,14 @@
 }
 
 /* Filter header */
-.filters__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-lg);
-}
-
 .btn-sm {
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: var(--font-size-sm);
 }
+
+/* ==========================================================================
+   MOVIE DETAILS PAGE
+   ========================================================================== */
 
 /* Movie Details Page */
 .movie-details {
@@ -918,6 +1114,10 @@
     flex-direction: column;
   }
 }
+
+/* ==========================================================================
+   ABOUT PAGE
+   ========================================================================== */
 
 /* About Page */
 .about {

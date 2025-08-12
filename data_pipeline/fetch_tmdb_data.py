@@ -45,16 +45,17 @@ class TMDBDataFetcher:
         
         self.movies = {}
         self.movies_lock = threading.Lock()
-        self.rate_limit_delay = 0.05  # 20 requests per second (optimized)
         self.max_workers = max_workers
+        # Highly optimized for performance like streamlined fetcher
+        self.timeout = (5, 10)
         self.last_request_time = 0
-        self.min_request_interval = 0.05
+        self.min_request_interval = 0.05  # 20 requests per second
         
         # Create session with retry strategy
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
-            backoff_factor=0.3,
+            backoff_factor=0.5,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
@@ -62,28 +63,27 @@ class TMDBDataFetcher:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         
-        # Rotate user agents
-        self.user_agents = [
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        ]
-        self.current_ua_index = 0
+        # Set headers for session
+        self.session.headers.update(self.headers)
     
     def _rate_limit(self):
-        """Rate limiting for API requests."""
+        """Simple rate limiting like streamlined fetcher."""
         current_time = time.time()
         elapsed = current_time - self.last_request_time
         if elapsed < self.min_request_interval:
             time.sleep(self.min_request_interval - elapsed)
         self.last_request_time = time.time()
-    
-    def _get_headers(self):
-        """Get headers with user agent rotation."""
-        self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
-        headers = self.headers.copy()
-        headers['User-Agent'] = self.user_agents[self.current_ua_index]
-        return headers
+
+    def process_provider_batch(self, providers_batch):
+        """Process a batch of providers in parallel."""
+        results = []
+        for provider_name, provider_id in providers_batch:
+            try:
+                provider_movies = self.get_movies_by_provider(provider_id, provider_name)
+                results.extend(provider_movies)
+            except Exception as e:
+                print(f"Error processing provider {provider_name}: {e}")
+        return results
 
     def get_movies_by_provider(self, provider_id: int, provider_name: str) -> List[Dict]:
         """Fetch movies available on a specific streaming service."""
@@ -104,9 +104,8 @@ class TMDBDataFetcher:
                 
                 # Use rate limiting and session
                 self._rate_limit()
-                headers = self._get_headers()
                 
-                response = self.session.get(url, headers=headers, params=params, timeout=(5, 10))
+                response = self.session.get(url, params=params, timeout=self.timeout)
                 response.raise_for_status()
                 
                 data = response.json()
@@ -180,9 +179,8 @@ class TMDBDataFetcher:
             
             # Use rate limiting and session
             self._rate_limit()
-            headers = self._get_headers()
             
-            response = self.session.get(url, headers=headers, params=params, timeout=(5, 10))
+            response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
             
             data = response.json()

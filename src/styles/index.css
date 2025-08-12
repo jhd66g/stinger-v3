@@ -137,7 +137,7 @@ button {
 }
 
 .btn-ghost:hover {
-  background-color: var(--card-bg);
+  background-color: var(--border-color);
   color: var(--text-primary);
 }
 

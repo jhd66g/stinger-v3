@@ -1,178 +1,204 @@
 #!/usr/bin/env python3
 """
-Fetch YouTube trailer links for movies using web scraping.
-This script searches YouTube directly for official trailers and adds the links to movie data.
+Fetch YouTube trailer links for movies by manually scraping YouTube search results.
+This script searches YouTube for movie trailers using web scraping with parallelization.
 """
 
 import os
 import json
 import time
 import requests
-import re
 from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
 from tqdm import tqdm
+from urllib.parse import quote_plus, urljoin
+from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-from urllib.parse import quote_plus
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import re
 
 # Load environment variables
 load_dotenv()
 
 class TrailerLinkFetcher:
-    def __init__(self, max_workers=10):
-        self.rate_limit_delay = 0.05  # 20 requests per second (optimized)
+    def __init__(self, max_workers=20):
         self.max_workers = max_workers
+        self.rate_limit_delay = 0.05  # 20 requests per second
         self.last_request_time = 0
         self.min_request_interval = 0.05
+        self.success_count = 0
+        self.movies_lock = threading.Lock()
         
         # Create session with retry strategy
         self.session = requests.Session()
         retry_strategy = Retry(
-            total=2,
-            backoff_factor=0.3,
-            status_forcelist=[403, 429, 500, 502, 503, 504],
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         
-        # Rotate user agents to avoid detection
+        # User agents to avoid detection
         self.user_agents = [
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         ]
         self.current_ua_index = 0
     
     def _rate_limit(self):
-        """Rate limiting for requests."""
+        """Simple rate limiting."""
         current_time = time.time()
         elapsed = current_time - self.last_request_time
         if elapsed < self.min_request_interval:
             time.sleep(self.min_request_interval - elapsed)
         self.last_request_time = time.time()
     
-    def _get_headers(self):
-        """Get headers with user agent rotation."""
+    def _get_next_user_agent(self):
+        """Rotate user agents."""
+        ua = self.user_agents[self.current_ua_index]
         self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
-        return {
-            'User-Agent': self.user_agents[self.current_ua_index],
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        }
+        return ua
         
-    def search_trailer(self, title: str, year: int) -> Optional[str]:
-        """Search for a movie trailer on YouTube using web scraping."""
+    def search_trailer(self, movie_title: str, year: int) -> Optional[str]:
+        """Search for movie trailer on YouTube by scraping search results."""
         try:
-            # Create search query
-            search_query = f"{title} {year} official trailer"
-            encoded_query = quote_plus(search_query)
-            
-            # YouTube search URL
-            search_url = f"https://www.youtube.com/results?search_query={encoded_query}&sp=EgIQAQ%253D%253D"  # Filter for videos
-            
-            # Use rate limiting and fresh headers
             self._rate_limit()
-            headers = self._get_headers()
             
-            # Get search results page
-            response = self.session.get(search_url, headers=headers, timeout=(5, 10))
+            # Create search query: "movie title year trailer"
+            query = f"{movie_title} {year} trailer"
+            search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
+            
+            headers = {
+                'User-Agent': self._get_next_user_agent(),
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+            
+            response = self.session.get(search_url, headers=headers, timeout=10)
             response.raise_for_status()
             
-            # Extract video IDs from the page
-            video_ids = self._extract_video_ids(response.text)
+            soup = BeautifulSoup(response.text, 'html.parser')
             
-            if video_ids:
-                # Return the first (most relevant) video
-                video_id = video_ids[0]
-                return f"https://www.youtube.com/watch?v={video_id}"
+            # Look for video links in the page
+            video_links = []
+            
+            # Method 1: Find script tags with video data
+            script_tags = soup.find_all('script')
+            for script in script_tags:
+                if script.string and 'var ytInitialData' in script.string:
+                    # Extract video IDs from the script content
+                    video_id_matches = re.findall(r'"videoId":"([^"]+)"', script.string)
+                    for video_id in video_id_matches[:5]:  # Take first 5
+                        video_links.append(f"https://www.youtube.com/watch?v={video_id}")
+                    break
+            
+            # Method 2: Look for anchor tags with /watch? URLs
+            if not video_links:
+                links = soup.find_all('a', href=re.compile(r'/watch\?v='))
+                for link in links[:5]:
+                    href = link.get('href')
+                    if href:
+                        full_url = urljoin('https://www.youtube.com', href)
+                        video_links.append(full_url)
+            
+            # Return first video (most relevant)
+            if video_links:
+                return video_links[0]
             
             return None
             
-        except requests.exceptions.RequestException as e:
-            # Silent error handling for speed
-            return None
         except Exception as e:
-            # Silent error handling for speed
+            print(f"Error searching for {movie_title} ({year}): {e}")
             return None
     
-    def _extract_video_ids(self, html_content: str) -> List[str]:
-        """Extract YouTube video IDs from HTML content, avoiding ads."""
-        # Look for video renderer objects (actual videos, not ads)
-        # Ads are typically in "adSlotRenderer" while videos are in "videoRenderer"
-        video_renderer_pattern = r'"videoRenderer".*?"videoId":"([a-zA-Z0-9_-]{11})"'
-        matches = re.findall(video_renderer_pattern, html_content)
+    def process_movie_batch(self, movies_batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Process a batch of movies for trailer links."""
+        results = []
+        for movie in movies_batch:
+            try:
+                title = movie.get('title', '')
+                year = movie.get('release_date', '')[:4] if movie.get('release_date') else ''
+                
+                if title and year:
+                    trailer_url = self.search_trailer(title, int(year))
+                    if trailer_url:
+                        if 'media' not in movie:
+                            movie['media'] = {}
+                        movie['media']['trailer_youtube'] = trailer_url
+                        
+                        with self.movies_lock:
+                            self.success_count += 1
+                
+                results.append(movie)
+                
+            except Exception as e:
+                print(f"Error processing {movie.get('title', 'Unknown')}: {e}")
+                results.append(movie)
         
-        if matches:
-            return matches[:5]  # Return top 5 video results
-        
-        # Fallback patterns if videoRenderer pattern doesn't work
-        fallback_patterns = [
-            r'watch\?v=([a-zA-Z0-9_-]{11})',
-            r'/watch\?v=([a-zA-Z0-9_-]{11})',
-            r'embed/([a-zA-Z0-9_-]{11})'
-        ]
-        
-        video_ids = []
-        for pattern in fallback_patterns:
-            matches = re.findall(pattern, html_content)
-            video_ids.extend(matches)
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_video_ids = []
-        for vid in video_ids:
-            if vid not in seen:
-                seen.add(vid)
-                unique_video_ids.append(vid)
-        
-        return unique_video_ids[:5]  # Return top 5 results
-    
-    def search_trailer_parallel(self, movie: Dict[str, Any]) -> Dict[str, Any]:
-        """Search for trailer for a single movie (for parallel execution)."""
-        title = movie.get('title', '')
-        year = movie.get('release_year', 0)
-        
-        if title and year:
-            trailer_link = self.search_trailer(title, year)
-            if trailer_link:
-                movie['media']['trailer_youtube'] = trailer_link
-        
-        # Remove the separate sleep since we have rate limiting in _rate_limit()
-        return movie
+        return results
     
     def update_movie_trailers(self, movies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Update movie data with YouTube trailer links using parallel processing."""
-        print("Fetching YouTube trailer links (parallel)...")
+        start_time = time.time()
+        print(f"🎬 Starting trailer search for {len(movies)} movies...")
+        print(f"   Using {self.max_workers} parallel workers")
         
-        # Use parallel processing for better performance
+        # Split into batches
+        batch_size = max(1, len(movies) // self.max_workers)
+        batches = [movies[i:i + batch_size] for i in range(0, len(movies), batch_size)]
+        
+        print(f"   Processing {len(batches)} batches (avg {batch_size} movies per batch)")
+        
+        # Process batches in parallel
+        all_results = []
+        
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = []
-            for movie in movies:
-                future = executor.submit(self.search_trailer_parallel, movie)
-                futures.append(future)
+            future_to_batch = {
+                executor.submit(self.process_movie_batch, batch): batch
+                for batch in batches
+            }
             
-            # Progress bar for trailer fetching
-            updated_movies = []
-            with tqdm(total=len(futures), desc="Adding trailers") as pbar:
-                for future in as_completed(futures):
-                    try:
-                        updated_movie = future.result()
-                        updated_movies.append(updated_movie)
-                    except Exception as e:
-                        print(f"Error in trailer search: {e}")
-                    pbar.update(1)
+            progress_bar = tqdm(total=len(movies), desc="🎬 Fetching trailers", unit="movies")
+            
+            for future in as_completed(future_to_batch):
+                batch = future_to_batch[future]
+                
+                try:
+                    batch_results = future.result()
+                    all_results.extend(batch_results)
+                    
+                    progress_bar.update(len(batch_results))
+                    
+                    elapsed_time = time.time() - start_time
+                    rate = len(all_results) / elapsed_time if elapsed_time > 0 else 0
+                    progress_bar.set_description(f"🎬 Fetching trailers ({rate:.1f} movies/sec)")
+                    
+                except Exception as e:
+                    print(f"Batch processing error: {e}")
+                    # Add error placeholders for the entire batch
+                    all_results.extend(batch)
+                    progress_bar.update(len(batch))
+            
+            progress_bar.close()
         
-        return updated_movies
+        # Final stats
+        elapsed_time = time.time() - start_time
+        rate = len(all_results) / elapsed_time
+        
+        print(f"\n🎬 TRAILER SEARCH COMPLETE")
+        print(f"   Total time: {elapsed_time:.1f} seconds")
+        print(f"   Rate: {rate:.1f} movies per second")
+        print(f"   Total processed: {len(all_results)}")
+        print(f"   Successfully found trailers: {self.success_count}")
+        print(f"   Success rate: {self.success_count/len(all_results)*100:.1f}%")
+        
+        return all_results
 
 def main():
     """Main function to update movie data with trailer links."""
@@ -180,7 +206,6 @@ def main():
         # Load existing movie data
         input_file = "tmdb_movies_with_ratings.json"
         if not os.path.exists(input_file):
-            # Try the original TMDB file if ratings file doesn't exist
             input_file = "tmdb_movies.json"
             if not os.path.exists(input_file):
                 print(f"Error: No movie data file found. Run fetch_tmdb_data.py first.")
@@ -194,8 +219,10 @@ def main():
             print("No movies found in data.")
             return 1
         
-        # Update with trailer links
-        fetcher = TrailerLinkFetcher(max_workers=15)  # Increased parallel workers
+        print(f"Processing {len(movies)} movies...")
+        
+        # Update with trailer links using parallelization
+        fetcher = TrailerLinkFetcher(max_workers=20)
         updated_movies = fetcher.update_movie_trailers(movies)
         
         # Save updated data
