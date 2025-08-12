@@ -29,12 +29,19 @@ const Header = () => {
     }
   };
 
+  const sortOptions = [
+    { value: 'title', label: 'Sort by Title' },
+    { value: 'year', label: 'Sort by Year' },
+    { value: 'rating', label: 'Sort by Rating' },
+    { value: 'popularity', label: 'Sort by Popularity' }
+  ];
+
   return (
     <header className="header">
       <div className="header__content">
         <div className="header__left">
           <Link to="/" className="header__logo">
-            <h1>STINGER</h1>
+            <h1>SOMETHING TO STREAM</h1>
           </Link>
         </div>
         
@@ -46,16 +53,24 @@ const Header = () => {
           {isHomePage && (
             <>
               <div className="header__sort-controls">
-                <select 
-                  value={sortBy} 
-                  onChange={(e) => handleSortChange(e.target.value)}
-                  className="header__sort-select"
-                >
-                  <option value="title">Sort by Title</option>
-                  <option value="year">Sort by Year</option>
-                  <option value="rating">Sort by Rating</option>
-                  <option value="popularity">Sort by Popularity</option>
-                </select>
+                <div className="header__sort-dropdown">
+                  <button 
+                    className="header__sort-select"
+                  >
+                    {sortOptions.find(option => option.value === sortBy)?.label}
+                  </button>
+                  <div className="header__sort-dropdown-menu">
+                    {sortOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => handleSortChange(option.value)}
+                        className={`header__sort-dropdown-item ${sortBy === option.value ? 'active' : ''}`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <button 
                   onClick={handleSortOrderToggle}
                   className="header__sort-button"
@@ -72,6 +87,14 @@ const Header = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="header__search-input"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="header__search-clear"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             </>
           )}

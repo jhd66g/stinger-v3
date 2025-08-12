@@ -27,7 +27,35 @@ const useMovieStore = create(
       
       // Pagination
       currentPage: 1,
-      itemsPerPage: 24,
+      itemsPerPage: 25,
+      
+      // Calculate optimal items per page based on window width
+      calculateOptimalItemsPerPage: () => {
+        const width = window.innerWidth;
+        let columns;
+        
+        // Calculate columns based on CSS grid auto-fit with 160px minimum
+        if (width < 768) {
+          columns = Math.floor(width / 150); // Mobile breakpoint
+        } else {
+          columns = Math.floor((width - 320) / 160); // Account for sidebar width
+        }
+        
+        // Ensure minimum 3 columns, maximum 8 columns
+        columns = Math.max(3, Math.min(8, columns));
+        
+        // Calculate square number close to optimal grid size
+        const rows = columns; // Make it square
+        const optimalItems = rows * columns;
+        
+        return optimalItems;
+      },
+      
+      // Update items per page based on window size
+      updateItemsPerPage: () => {
+        const optimal = get().calculateOptimalItemsPerPage();
+        set({ itemsPerPage: optimal, currentPage: 1 });
+      },
       
       // Actions
       loadMovies: async () => {

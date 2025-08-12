@@ -14,10 +14,24 @@ const MovieGrid = () => {
     getPaginatedMovies, 
     getTotalPages,
     currentPage,
-    setPage
+    setPage,
+    updateItemsPerPage
   } = useMovieStore();
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Update items per page on window resize
+  React.useEffect(() => {
+    updateItemsPerPage(); // Set initial value
+    
+    const handleResize = () => {
+      updateItemsPerPage();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updateItemsPerPage]);
+  
   const filteredMovies = getFilteredMovies();
   const paginatedMovies = getPaginatedMovies();
   const totalPages = getTotalPages();
@@ -49,7 +63,7 @@ const MovieGrid = () => {
       <main className="content">
         <div className="results-info">
           <div className="results-count">
-            {filteredMovies.length} results found
+            {filteredMovies.length.toLocaleString()} results found
           </div>
         </div>
         

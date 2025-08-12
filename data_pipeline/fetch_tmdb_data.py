@@ -218,15 +218,23 @@ class TMDBDataFetcher:
                     keywords_data = data.get('keywords', {}).get('keywords', [])
                     movie["keywords"] = [kw['name'] for kw in keywords_data[:20]]
                     
-                    # Update poster/backdrop paths
+                    # Update poster/backdrop paths with language preference
                     images = data.get('images', {})
                     posters = images.get('posters', [])
                     backdrops = images.get('backdrops', [])
                     
                     if posters:
-                        poster_path = posters[0].get('file_path', '')
-                        if poster_path:
-                            movie["media"]["poster"] = f"https://image.tmdb.org/t/p/w500{poster_path}"
+                        # Prioritize English posters first, then original language, then any poster
+                        original_lang = movie.get("original_language", "")
+                        english_poster = next((p for p in posters if p.get('iso_639_1') == 'en'), None)
+                        original_lang_poster = next((p for p in posters if p.get('iso_639_1') == original_lang), None)
+                        any_poster = posters[0] if posters else None
+                        
+                        selected_poster = english_poster or original_lang_poster or any_poster
+                        if selected_poster:
+                            poster_path = selected_poster.get('file_path', '')
+                            if poster_path:
+                                movie["media"]["poster"] = f"https://image.tmdb.org/t/p/w500{poster_path}"
                     
                     if backdrops:
                         backdrop_path = backdrops[0].get('file_path', '')

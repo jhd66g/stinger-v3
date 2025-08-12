@@ -17,14 +17,13 @@ cd data_pipeline
 
 # Create virtual environment
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Create .env file with your TMDB API key
 cp env.example .env
-# Edit .env and add your TMDB_BEARER_TOKEN
 
 # Run the data pipeline
 ./data_pipeline.sh
@@ -51,7 +50,7 @@ npm run preview
 
 ## Features
 
-- **Streaming Service Filters**: Netflix, Disney+, Hulu, Max, Paramount+, Apple TV+
+- **Streaming Service Filters**: Netflix, Disney+, Hulu, HBO Max, Paramount+, Apple TV+, Peacock
 - **Advanced Search**: Search by title, actor, director, or keywords
 - **Genre & Year Filters**: Find movies by genre and release year range
 - **Rating Filters**: Filter by Rotten Tomatoes ratings (0-100%)

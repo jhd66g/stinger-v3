@@ -80,19 +80,26 @@ class RottenTomatoesDataFetcher:
     def search_movie(self, title: str, year: int) -> Dict[str, Any]:
         """Search for a movie on Rotten Tomatoes using web scraping."""
         try:
-            # Skip movies with problematic characters
-            if any(char in title for char in ['#', '@', ':', '"', "'", '…', '×', '²']):
+            # Skip movies with only the most problematic characters
+            if any(char in title for char in ['#', '@']):
                 return {"tomatometer": 0, "audience": 0, "title": "", "year": 0}
             
-            # Clean and format title for URL
+            # Clean and format title for URL - more comprehensive patterns
             clean_title = re.sub(r'[^\w\s-]', '', title).strip()
             url_title = re.sub(r'\s+', '_', clean_title.lower())
             
-            # Try common URL patterns for Rotten Tomatoes
+            # Try comprehensive URL patterns for Rotten Tomatoes
             possible_urls = [
                 f"https://www.rottentomatoes.com/m/{url_title}",
                 f"https://www.rottentomatoes.com/m/{url_title}_{year}",
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}"
+                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}",
+                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '-')}",
+                f"https://www.rottentomatoes.com/m/{url_title.replace('_the_', '_')}",
+                f"https://www.rottentomatoes.com/m/{url_title.replace('_a_', '_')}",
+                f"https://www.rottentomatoes.com/m/{re.sub(r'_the_|_a_|_an_', '_', url_title)}",
+                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}_{year}",
+                f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '_').replace(':', '').replace("'", '')}",
+                f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '').replace(':', '').replace("'", '')}"
             ]
             
             for url in possible_urls:
@@ -180,12 +187,16 @@ class RottenTomatoesDataFetcher:
                             }
                     
                     elif response.status_code == 403:
-                        # Access denied - back off and try with different user agent
-                        time.sleep(1)
+                        # Access denied - back off longer and try with different user agent
+                        time.sleep(2)
                         continue  # Try next URL instead of breaking
+                    elif response.status_code == 404:
+                        # Not found - try next URL pattern
+                        continue
                 
                 except requests.RequestException as e:
-                    # Silent handling for speed - no printing
+                    # For network errors, retry with backoff
+                    time.sleep(0.5)
                     continue
             
             return {"tomatometer": 0, "audience": 0, "title": "", "year": 0}

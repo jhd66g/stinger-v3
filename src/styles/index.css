@@ -7,19 +7,19 @@
 
 :root {
   /* Colors - Clean, minimal palette */
-  --primary-color: #1a1a1a;
-  --secondary-color: #2d2d2d;
+  --primary-color: #151515;
+  --secondary-color: #202020;
   --accent-color: #4a9eff;
   --text-primary: #ffffff;
   --text-secondary: #b3b3b3;
   --text-muted: #808080;
   --border-color: #404040;
-  --background-dark: #0a0a0a;
-  --background-light: #1f1f1f;
+  --background-dark: #151515;
+  --background-light: #151515;
   --card-bg: #2d2d2d;
   
   /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
