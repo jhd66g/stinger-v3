@@ -14,6 +14,7 @@ const MovieGrid = () => {
     getPaginatedMovies, 
     getTotalPages,
     isSinglePage,
+    isLastPage,
     currentPage,
     setPage,
     updateItemsPerPage
@@ -51,7 +52,7 @@ const MovieGrid = () => {
   }
 
   return (
-    <div className={`layout ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
+    <div className={`layout ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <Filters />
       </aside>
@@ -85,7 +86,7 @@ const MovieGrid = () => {
           </div>
         ) : (
           <>
-            <div className={`movie-grid ${isSinglePage() ? 'movie-grid--single-page' : ''}`}>
+            <div className={`movie-grid ${isLastPage() ? 'movie-grid--single-page' : ''}`}>
               {paginatedMovies.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} />
               ))}

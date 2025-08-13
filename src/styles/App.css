@@ -1193,3 +1193,43 @@
   margin-top: var(--spacing-2xl);
   text-align: center;
 }
+
+/* ==========================================================================
+   STREAMING SERVICE LINKS HOVER EFFECTS (Movie Details)
+   ========================================================================== */
+
+.streaming-service-link {
+  transition: color var(--transition-fast);
+}
+
+.streaming-service-link.netflix:hover {
+  color: #E50914 !important;
+}
+
+.streaming-service-link.disney:hover {
+  color: #4A90E2 !important;
+}
+
+.streaming-service-link.hulu:hover {
+  color: #1CE783 !important;
+}
+
+.streaming-service-link.hbo:hover,
+.streaming-service-link.hbomax:hover {
+  color: #A855F7 !important;
+}
+
+.streaming-service-link.paramount:hover {
+  color: #3B82F6 !important;
+}
+
+.streaming-service-link.apple:hover {
+  color: #A6A6A6 !important;
+}
+
+.streaming-service-link.peacock:hover {
+  background: linear-gradient(45deg, #FF6B35, #F7931E, #FFD23F, #009739, #0099CC, #9A4C95) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}

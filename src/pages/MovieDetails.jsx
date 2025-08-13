@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useMovieStore } from '../lib/store'
 
@@ -9,6 +9,11 @@ const MovieDetails = () => {
   
   const movie = getMovieById(id)
   const filteredMovies = getFilteredMovies()
+
+  // Scroll to top when component mounts or movie changes
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [id])
   
   if (!movie) {
     return (
@@ -76,7 +81,7 @@ const MovieDetails = () => {
 
             {/* Cast & Crew and Production in 2 columns */}
             <div className="movie-details__grid">
-              {/* Cast & Crew */}
+              {/* Cast & Crew and Ratings */}
               <div className="movie-details__section">
                 {movie.director && (
                   <div className="movie-details__crew">
@@ -88,9 +93,54 @@ const MovieDetails = () => {
                     <strong>Cast:</strong> {movie.cast.join(', ')}
                   </div>
                 )}
+                {/* Streaming services */}
+                {movie.streaming.length > 0 && (
+                  <div className="movie-details__streaming">
+                    <strong>Available on:</strong> {movie.streaming.map((stream, index) => {
+                      // Generate service-specific URLs
+                      const getServiceUrl = (service, movieTitle, year) => {
+                        const titleQuery = encodeURIComponent(movieTitle.replace(/\s+/g, '+'))
+                        switch(service.toLowerCase()) {
+                          case 'netflix':
+                            return `https://www.netflix.com/search?q=${encodeURIComponent(movieTitle)}`
+                          case 'disney+':
+                            return `https://www.disneyplus.com/en-gb/browse/search`
+                          case 'hulu':
+                            return `https://www.hulu.com/search`
+                          case 'hbo max':
+                          case 'max':
+                            return `https://play.hbomax.com/search/result?q=${titleQuery}`
+                          case 'paramount+':
+                            return `https://www.paramountplus.com/search/`
+                          case 'apple tv+':
+                            return `https://tv.apple.com/us/search?term=${encodeURIComponent(movieTitle.toLowerCase())}`
+                          case 'peacock':
+                            return `https://www.peacocktv.com/watch/search`
+                          default:
+                            return `https://www.google.com/search?q=${encodeURIComponent(`${movieTitle} ${year}`)}+streaming`
+                        }
+                      }
+                      
+                      return (
+                        <span key={index}>
+                          <a
+                            href={getServiceUrl(stream.service, movie.title, movie.release_year)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`streaming-service-link ${stream.service.toLowerCase().replace(/\s+/g, '').replace('+', '')}`}
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                          >
+                            {stream.service}
+                          </a>
+                          {index < movie.streaming.length - 1 ? ', ' : ''}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Production */}
+              {/* Production and Streaming services */}
               <div className="movie-details__section">
                 {movie.production_companies.length > 0 && (
                   <div className="movie-details__companies">
@@ -106,17 +156,11 @@ const MovieDetails = () => {
                 <div className="movie-details__revenue">
                   <strong>Revenue:</strong> {formatCurrency(movie.revenue_usd)}
                 </div>
-              </div>
-            </div>
-
-            {/* Ratings and Streaming services in 2 columns */}
-            <div className="movie-details__grid">
-              {/* Ratings */}
-              <div className="movie-details__section">
+                {/* Ratings */}
                 <div className="movie-details__ratings">
                   {movie.ratings.rt_tomatometer > 0 && (
                     <div className="movie-details__rating-item">
-                      <span className="movie-details__rating-label">Tomatometer</span>
+                      <strong>Tomatometer</strong>
                       <span className="movie-details__rating-score">
                         {movie.ratings.rt_tomatometer}%
                       </span>
@@ -125,7 +169,7 @@ const MovieDetails = () => {
                   
                   {movie.ratings.rt_audience > 0 && (
                     <div className="movie-details__rating-item">
-                      <span className="movie-details__rating-label">Audience Score</span>
+                      <strong>Audience Score</strong>
                       <span className="movie-details__rating-score">
                         {movie.ratings.rt_audience}%
                       </span>
@@ -133,25 +177,6 @@ const MovieDetails = () => {
                   )}
                 </div>
               </div>
-
-              {/* Streaming services */}
-              {movie.streaming.length > 0 && (
-                <div className="movie-details__section">
-                  <div className="movie-details__services">
-                    {movie.streaming.map((stream, index) => (
-                      <a
-                        key={index}
-                        href={stream.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="movie-details__service-link"
-                      >
-                        {stream.service}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -161,7 +186,6 @@ const MovieDetails = () => {
           {/* Trailer */}
           {movie.media.trailer_youtube && (
             <div className="movie-details__trailer">
-              <h3>Trailer</h3>
               <div className="movie-details__video-container">
                 <iframe
                   src={`${movie.media.trailer_youtube.replace('watch?v=', 'embed/')}?autoplay=0&showinfo=0&controls=1&modestbranding=1&rel=0&iv_load_policy=3`}
@@ -178,13 +202,13 @@ const MovieDetails = () => {
         {/* Navigation */}
         <div className="movie-details__navigation">
           {prevMovie && (
-            <Link to={`/movie/${prevMovie.id}`} className="btn btn-secondary">
+            <Link to={`/movie/${prevMovie.id}`} className="pagination-button">
               ← {prevMovie.title}
             </Link>
           )}
           
           {nextMovie && (
-            <Link to={`/movie/${nextMovie.id}`} className="btn btn-secondary">
+            <Link to={`/movie/${nextMovie.id}`} className="pagination-button">
               {nextMovie.title} →
             </Link>
           )}

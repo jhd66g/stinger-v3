@@ -129,8 +129,36 @@ class RottenTomatoesDataFetcher:
             url_title_compact = re.sub(r'_+', '_', url_title.replace('_the_', '_').replace('_a_', '_').replace('_an_', '_')).strip('_')
             url_title_no_spaces = title.lower().replace(' ', '').replace(':', '').replace("'", '').replace('-', '').replace('.', '')
             
+            # Special handling for titles with Roman numerals and complex formatting
+            special_cases = {}
+            title_lower = title.lower()
+            
+            # Convert Roman numerals to Arabic for URL patterns
+            roman_to_arabic = {'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6', 'vii': '7', 'viii': '8', 'ix': '9', 'x': '10'}
+            
+            # Handle titles with "Episode [Roman]" or "Part [Roman]" patterns
+            for roman, arabic in roman_to_arabic.items():
+                if f'episode {roman}' in title_lower or f'part {roman}' in title_lower:
+                    # Create URL-friendly version with Arabic numerals
+                    alt_title = re.sub(rf'\bepisode\s+{roman}\b', f'episode_{arabic}', title_lower, flags=re.IGNORECASE)
+                    alt_title = re.sub(rf'\bpart\s+{roman}\b', f'part_{arabic}', alt_title, flags=re.IGNORECASE)
+                    alt_url = re.sub(r'[^\w\s-]', '', alt_title).strip()
+                    alt_url = re.sub(r'\s+', '_', alt_url)
+                    special_cases[alt_url] = f"{alt_url}_{year}"
+                    break
+            
             # Try comprehensive URL patterns for Rotten Tomatoes
-            possible_urls = [
+            possible_urls = []
+            
+            # Add special cases first (highest priority)
+            for special_url in special_cases.keys():
+                possible_urls.extend([
+                    f"https://www.rottentomatoes.com/m/{special_url}",
+                    f"https://www.rottentomatoes.com/m/{special_cases[special_url]}"
+                ])
+            
+            # Standard patterns
+            possible_urls.extend([
                 # Try without leading articles first (most common pattern)
                 f"https://www.rottentomatoes.com/m/{url_title_no_articles}",
                 f"https://www.rottentomatoes.com/m/{url_title_no_articles}_{year}",
@@ -150,7 +178,7 @@ class RottenTomatoesDataFetcher:
                 # Legacy patterns
                 f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '_').replace(':', '').replace("'", '')}",
                 f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '').replace(':', '').replace("'", '')}"
-            ]
+            ])
             
             # Remove duplicates while preserving order
             seen = set()

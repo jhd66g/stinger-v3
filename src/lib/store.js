@@ -53,14 +53,21 @@ const useMovieStore = create(
       
       // Update items per page based on window size
       updateItemsPerPage: () => {
+        const { currentPage, itemsPerPage } = get();
         const optimal = get().calculateOptimalItemsPerPage();
         const filtered = get().getFilteredMovies();
+        
+        // Calculate the index of the first movie currently displayed
+        const firstMovieIndex = (currentPage - 1) * itemsPerPage;
+        
+        // Calculate which page this movie should be on with the new items per page
+        const newPage = Math.floor(firstMovieIndex / optimal) + 1;
         
         // If there's only one page worth of content, don't limit items per page
         if (filtered.length <= optimal) {
           set({ itemsPerPage: filtered.length || optimal, currentPage: 1 });
         } else {
-          set({ itemsPerPage: optimal, currentPage: 1 });
+          set({ itemsPerPage: optimal, currentPage: newPage });
         }
       },
       
@@ -204,8 +211,9 @@ const useMovieStore = create(
         return Math.ceil(filtered.length / get().itemsPerPage)
       },
       
-      isSinglePage: () => {
-        return get().getTotalPages() <= 1
+      isLastPage: () => {
+        const { currentPage } = get()
+        return currentPage === get().getTotalPages()
       },
       
       getAvailableServices: () => {
