@@ -1,4 +1,4 @@
-# STINGER Streaming (V3)
+# STINGER V3 (Something to Stream)
 
 A fast, static, privacy‑friendly movie discovery web app that aggregates **where to stream** plus key metadata (ratings, cast, trailers) and lets users **filter, search, and sort** thousands of films. Built to run fully client‑side and deploy on GitHub Pages (no backend required).
 
