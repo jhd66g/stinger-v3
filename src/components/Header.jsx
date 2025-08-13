@@ -1,11 +1,13 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMovieStore } from '../lib/store';
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { searchQuery, setSearchQuery, sortBy, sortOrder, setSorting } = useMovieStore();
   const isHomePage = location.pathname === '/';
+  const isDetailsOrAboutPage = location.pathname.startsWith('/movie/') || location.pathname === '/about';
 
   const handleSortChange = (newSortBy) => {
     if (sortBy === newSortBy) {
@@ -46,9 +48,18 @@ const Header = () => {
         </div>
         
         <div className="header__right">
-          <Link to="/about" className="header__nav-link">
-            About
-          </Link>
+          {isDetailsOrAboutPage ? (
+            <button 
+              onClick={() => navigate(-1)} 
+              className="header__nav-link"
+            >
+              ← Back
+            </button>
+          ) : (
+            <Link to="/about" className="header__nav-link">
+              About
+            </Link>
+          )}
           
           {isHomePage && (
             <>

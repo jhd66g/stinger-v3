@@ -44,17 +44,24 @@ const useMovieStore = create(
         // Ensure minimum 3 columns, maximum 8 columns
         columns = Math.max(3, Math.min(8, columns));
         
-        // Calculate square number close to optimal grid size
-        const rows = columns; // Make it square
-        const optimalItems = rows * columns;
+        // Fixed 5 rows, flexible columns
+        const rows = 5;
+        const itemsPerPage = rows * columns;
         
-        return optimalItems;
+        return itemsPerPage;
       },
       
       // Update items per page based on window size
       updateItemsPerPage: () => {
         const optimal = get().calculateOptimalItemsPerPage();
-        set({ itemsPerPage: optimal, currentPage: 1 });
+        const filtered = get().getFilteredMovies();
+        
+        // If there's only one page worth of content, don't limit items per page
+        if (filtered.length <= optimal) {
+          set({ itemsPerPage: filtered.length || optimal, currentPage: 1 });
+        } else {
+          set({ itemsPerPage: optimal, currentPage: 1 });
+        }
       },
       
       // Actions
@@ -83,16 +90,18 @@ const useMovieStore = create(
           filters: { ...get().filters, ...newFilters },
           currentPage: 1 
         })
+        // Refresh grid layout when filters change
+        get().updateItemsPerPage()
       },
-      
+
       setSearchQuery: (query) => {
         set({ 
           searchQuery: query,
           currentPage: 1 
         })
-      },
-      
-      setSorting: (sortBy, sortOrder) => {
+        // Refresh grid layout when search changes
+        get().updateItemsPerPage()
+      },      setSorting: (sortBy, sortOrder) => {
         set({ sortBy, sortOrder })
       },
       
@@ -193,6 +202,10 @@ const useMovieStore = create(
       getTotalPages: () => {
         const filtered = get().getFilteredMovies()
         return Math.ceil(filtered.length / get().itemsPerPage)
+      },
+      
+      isSinglePage: () => {
+        return get().getTotalPages() <= 1
       },
       
       getAvailableServices: () => {

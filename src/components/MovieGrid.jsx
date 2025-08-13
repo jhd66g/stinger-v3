@@ -13,6 +13,7 @@ const MovieGrid = () => {
     getFilteredMovies, 
     getPaginatedMovies, 
     getTotalPages,
+    isSinglePage,
     currentPage,
     setPage,
     updateItemsPerPage
@@ -84,7 +85,7 @@ const MovieGrid = () => {
           </div>
         ) : (
           <>
-            <div className="movie-grid">
+            <div className={`movie-grid ${isSinglePage() ? 'movie-grid--single-page' : ''}`}>
               {paginatedMovies.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} />
               ))}

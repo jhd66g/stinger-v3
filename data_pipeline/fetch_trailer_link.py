@@ -70,8 +70,8 @@ class TrailerLinkFetcher:
         try:
             self._rate_limit()
             
-            # Create search query: "movie title year trailer"
-            query = f"{movie_title} {year} trailer"
+            # Create search query: "movie title year official trailer"
+            query = f"{movie_title} {year} official trailer"
             search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
             
             headers = {
@@ -87,29 +87,69 @@ class TrailerLinkFetcher:
             
             # Look for video links in the page
             video_links = []
+            video_titles = []
             
             # Method 1: Find script tags with video data
             script_tags = soup.find_all('script')
             for script in script_tags:
                 if script.string and 'var ytInitialData' in script.string:
-                    # Extract video IDs from the script content
+                    # Extract video IDs and titles from the script content
                     video_id_matches = re.findall(r'"videoId":"([^"]+)"', script.string)
-                    for video_id in video_id_matches[:5]:  # Take first 5
-                        video_links.append(f"https://www.youtube.com/watch?v={video_id}")
+                    title_matches = re.findall(r'"title":{"runs":\[{"text":"([^"]+)"', script.string)
+                    
+                    for i, video_id in enumerate(video_id_matches[:10]):  # Check first 10
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        title = title_matches[i] if i < len(title_matches) else ""
+                        video_links.append(video_url)
+                        video_titles.append(title.lower())
                     break
             
             # Method 2: Look for anchor tags with /watch? URLs
             if not video_links:
                 links = soup.find_all('a', href=re.compile(r'/watch\?v='))
-                for link in links[:5]:
+                for link in links[:10]:
                     href = link.get('href')
                     if href:
                         full_url = urljoin('https://www.youtube.com', href)
+                        # Try to get title from aria-label or title attribute
+                        title = link.get('aria-label', '') or link.get('title', '')
                         video_links.append(full_url)
+                        video_titles.append(title.lower())
             
-            # Return first video (most relevant)
+            # Filter for actual trailers (prioritize official trailers)
             if video_links:
-                return video_links[0]
+                movie_title_lower = movie_title.lower()
+                trailer_keywords = ['trailer', 'official', 'teaser']
+                bad_keywords = ['ad', 'advertisement', 'commercial', 'review', 'reaction', 'breakdown', 'explained']
+                
+                # Score each video based on relevance
+                scored_videos = []
+                for i, (url, title) in enumerate(zip(video_links, video_titles)):
+                    score = 0
+                    
+                    # Bonus for containing movie title
+                    if movie_title_lower in title:
+                        score += 10
+                    
+                    # Bonus for trailer keywords
+                    for keyword in trailer_keywords:
+                        if keyword in title:
+                            score += 5
+                    
+                    # Penalty for bad keywords
+                    for keyword in bad_keywords:
+                        if keyword in title:
+                            score -= 20
+                    
+                    # Bonus for position (earlier = better)
+                    score += (10 - i)
+                    
+                    scored_videos.append((score, url))
+                
+                # Sort by score and return the best one
+                scored_videos.sort(key=lambda x: x[0], reverse=True)
+                if scored_videos and scored_videos[0][0] > 0:
+                    return scored_videos[0][1]
             
             return None
             
