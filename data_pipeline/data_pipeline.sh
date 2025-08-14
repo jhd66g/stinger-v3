@@ -79,9 +79,10 @@ if [ -f "movie_data.json" ]; then
     movies_with_trailers=$(python -c "import json; data=json.load(open('movie_data.json')); print(sum(1 for m in data.get('movies', []) if m.get('media', {}).get('trailer_youtube')))")
     echo "Movies with trailers: $movies_with_trailers"
     
-    # Copy to public directory for web app
-    echo "Copying to public directory..."
+    # Copy to public directory and root for web app
+    echo "Copying to public directory and root..."
     cp movie_data.json ../public/movie_data.json
+    cp movie_data.json ../movie_data.json
     
     echo ""
     echo "Data pipeline completed successfully!"
