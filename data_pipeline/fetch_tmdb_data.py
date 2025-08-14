@@ -193,6 +193,8 @@ class TMDBDataFetcher:
                     # Update basic info
                     movie["runtime_min"] = data.get('runtime', 0)
                     movie["mpa_rating"] = data.get('adult', False) and 'R' or 'PG-13'
+                    movie["budget_usd"] = data.get('budget', 0)
+                    movie["revenue_usd"] = data.get('revenue', 0)
                     
                     # Get genres
                     genres = data.get('genres', [])

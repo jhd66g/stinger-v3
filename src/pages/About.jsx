@@ -6,38 +6,38 @@ const About = () => {
     <div className="about">
       <div className="container">
         <div className="about__content">
-          <h1>About STINGER Streaming</h1>
-          
           <p>
-            STINGER Streaming is a fast, static, privacy-friendly movie discovery web app that helps you find where to stream your favorite movies. 
-            We aggregate streaming availability from multiple services and provide rich metadata including ratings, cast information, and trailers.
+            <strong><em>SOMETHING TO STREAM</em></strong> is a fast, easy-to-use website that helps you find where to stream your favorite movies. 
+            It aggregates the libraries of streaming services like{' '}
+            <a href="https://tv.apple.com" className="streaming-link apple-tv" target="_blank" rel="noopener noreferrer">Apple TV+</a>,{' '}
+            <a href="https://www.disneyplus.com" className="streaming-link disney-plus" target="_blank" rel="noopener noreferrer">Disney+</a>,{' '}
+            <a href="https://www.max.com" className="streaming-link hbo-max" target="_blank" rel="noopener noreferrer">HBO Max</a>,{' '}
+            <a href="https://www.hulu.com" className="streaming-link hulu" target="_blank" rel="noopener noreferrer">Hulu</a>,{' '}
+            <a href="https://www.netflix.com" className="streaming-link netflix" target="_blank" rel="noopener noreferrer">Netflix</a>,{' '}
+            <a href="https://www.paramountplus.com" className="streaming-link paramount-plus" target="_blank" rel="noopener noreferrer">Paramount+</a>, and{' '}
+            <a href="https://www.peacocktv.com" className="streaming-link peacock" target="_blank" rel="noopener noreferrer">Peacock</a>, 
+            and displays them in a simple grid, letting users filter as they wish.
           </p>
           
-          <h2>Features</h2>
-          <ul>
-            <li><strong>Streaming Service Filters:</strong> Filter by Netflix, Disney+, Hulu, Max, Paramount+, and Apple TV+</li>
-            <li><strong>Advanced Search:</strong> Search by title, actor, director, or keywords</li>
-            <li><strong>Genre & Year Filters:</strong> Find movies by genre and release year</li>
-            <li><strong>Rating Filters:</strong> Filter by Rotten Tomatoes ratings</li>
-            <li><strong>Rich Movie Details:</strong> View cast, crew, ratings, trailers, and streaming links</li>
-            <li><strong>Responsive Design:</strong> Works perfectly on desktop, tablet, and mobile</li>
-          </ul>
-          
-          <h2>Privacy & Performance</h2>
           <p>
-            STINGER is built as a static website with no backend required. All movie data is pre-loaded and runs entirely in your browser, 
-            ensuring fast performance and complete privacy. We don't track your searches or viewing habits.
+            The website maintains an up-to-date database fetching movie data from{' '}
+            <a href="https://www.themoviedb.org" className="external-link" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a>, 
+            ratings from{' '}
+            <a href="https://www.rottentomatoes.com" className="external-link" target="_blank" rel="noopener noreferrer">Rotten Tomatoes</a>, 
+            and trailers from{' '}
+            <a href="https://www.youtube.com" className="external-link" target="_blank" rel="noopener noreferrer">YouTube</a>.
           </p>
           
-          <h2>Data Sources</h2>
           <p>
-            Our movie data comes from The Movie Database (TMDB) API, with additional ratings from Rotten Tomatoes. 
-            Streaming availability is updated regularly to provide accurate information about where you can watch each movie.
+            More features coming soon …
           </p>
           
-          <h2>Technology</h2>
           <p>
-            Built with React, Vite, and modern web technologies. The app is designed to be fast, accessible, and easy to use.
+            Enjoy!
+          </p>
+          
+          <p>
+            - Jack D
           </p>
           
           <div className="about__actions">
