@@ -72,21 +72,36 @@ const useMovieStore = create(
       },
       
       // Actions
-      loadMovies: async () => {
+      loadMovies: async (retryCount = 0) => {
         set({ loading: true, error: null })
         try {
-          const response = await fetch('/movie_data.json')
+          const response = await fetch('/movie_data.json', {
+            cache: 'force-cache' // Use cached version if available
+          })
+          
           if (!response.ok) {
-            throw new Error('Failed to load movie data')
+            if (response.status === 429 && retryCount < 3) {
+              // Rate limited, wait and retry
+              await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000))
+              return get().loadMovies(retryCount + 1)
+            }
+            throw new Error(`Failed to load movie data (${response.status})`)
           }
+          
           const data = await response.json()
           set({ 
             movies: data.movies || [],
             loading: false 
           })
         } catch (error) {
+          if (retryCount < 2) {
+            // Retry after a delay
+            await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000))
+            return get().loadMovies(retryCount + 1)
+          }
+          
           set({ 
-            error: error.message,
+            error: `${error.message}. Please refresh the page to try again.`,
             loading: false 
           })
         }
