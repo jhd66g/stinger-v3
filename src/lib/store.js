@@ -13,7 +13,7 @@ const useMovieStore = create(
       filters: {
         services: [],
         genres: [],
-        yearRange: [1900, new Date().getFullYear() + 1],
+        yearRange: [1900, new Date().getFullYear()],
         ratingRange: [0, 100]
       },
       
@@ -144,6 +144,7 @@ const useMovieStore = create(
             movie.title.toLowerCase().includes(query) ||
             movie.cast.some(actor => actor.toLowerCase().includes(query)) ||
             movie.director.toLowerCase().includes(query) ||
+            movie.production_companies.some(company => company.toLowerCase().includes(query)) ||
             movie.keywords.some(keyword => keyword.toLowerCase().includes(query))
           )
         }

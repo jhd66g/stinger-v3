@@ -64,6 +64,28 @@ class TrailerLinkFetcher:
         ua = self.user_agents[self.current_ua_index]
         self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
         return ua
+    
+    def _is_short_video(self, duration_text: str) -> bool:
+        """Check if video duration is less than 30 seconds based on accessibility label."""
+        try:
+            # Duration format examples: "1 minute, 30 seconds", "45 seconds", "2 minutes"
+            duration_lower = duration_text.lower()
+            
+            # If it contains minutes, it's definitely longer than 30 seconds
+            if 'minute' in duration_lower:
+                return False
+            
+            # Extract seconds
+            import re
+            seconds_match = re.search(r'(\d+)\s*second', duration_lower)
+            if seconds_match:
+                seconds = int(seconds_match.group(1))
+                return seconds < 30
+            
+            # If we can't parse it, assume it's not short
+            return False
+        except:
+            return False
         
     def search_trailer(self, movie_title: str, year: int) -> Optional[str]:
         """Search for movie trailer on YouTube by scraping search results."""
@@ -96,12 +118,18 @@ class TrailerLinkFetcher:
                     # Extract video IDs and titles from the script content
                     video_id_matches = re.findall(r'"videoId":"([^"]+)"', script.string)
                     title_matches = re.findall(r'"title":{"runs":\[{"text":"([^"]+)"', script.string)
+                    duration_matches = re.findall(r'"lengthText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"', script.string)
                     
                     for i, video_id in enumerate(video_id_matches[:10]):  # Check first 10
                         video_url = f"https://www.youtube.com/watch?v={video_id}"
                         title = title_matches[i] if i < len(title_matches) else ""
+                        duration = duration_matches[i] if i < len(duration_matches) else ""
                         video_links.append(video_url)
                         video_titles.append(title.lower())
+                        # Store duration info for filtering
+                        if not hasattr(self, 'video_durations'):
+                            self.video_durations = {}
+                        self.video_durations[video_url] = duration
                     break
             
             # Method 2: Look for anchor tags with /watch? URLs
@@ -119,36 +147,68 @@ class TrailerLinkFetcher:
             # Filter for actual trailers (prioritize official trailers)
             if video_links:
                 movie_title_lower = movie_title.lower()
-                trailer_keywords = ['trailer', 'official', 'teaser']
-                bad_keywords = ['ad', 'advertisement', 'commercial', 'review', 'reaction', 'breakdown', 'explained']
+                trailer_keywords = ['trailer', 'official', 'teaser', 'preview']
+                official_keywords = ['official', 'studio', movie_title_lower]
+                bad_keywords = [
+                    'ad', 'advertisement', 'commercial', 'review', 'reaction', 
+                    'breakdown', 'explained', 'interview', 'behind the scenes',
+                    'making of', 'bloopers', 'deleted scene', 'clip', 'scene',
+                    'tv spot', 'promo', 'featurette', 'comparison', 'vs',
+                    'easter egg', 'theory', 'analysis', 'ending explained'
+                ]
                 
                 # Score each video based on relevance
                 scored_videos = []
                 for i, (url, title) in enumerate(zip(video_links, video_titles)):
                     score = 0
+                    title_words = title.split()
                     
-                    # Bonus for containing movie title
+                    # Strong bonus for containing exact movie title
                     if movie_title_lower in title:
-                        score += 10
+                        score += 15
+                    
+                    # Bonus for official keywords (highest priority)
+                    for keyword in official_keywords:
+                        if keyword in title:
+                            score += 10
                     
                     # Bonus for trailer keywords
                     for keyword in trailer_keywords:
                         if keyword in title:
-                            score += 5
+                            score += 8
                     
-                    # Penalty for bad keywords
+                    # Strong penalty for bad keywords
                     for keyword in bad_keywords:
                         if keyword in title:
-                            score -= 20
+                            score -= 25
                     
-                    # Bonus for position (earlier = better)
-                    score += (10 - i)
+                    # Penalty for very long titles (often fan-made content)
+                    if len(title_words) > 8:
+                        score -= 5
                     
-                    scored_videos.append((score, url))
+                    # Bonus for position (earlier = more relevant)
+                    score += (15 - i)
+                    
+                    # Bonus for "official trailer" exact phrase
+                    if 'official trailer' in title:
+                        score += 20
+                    
+                    # Penalty for numbers in parentheses (often fan cuts)
+                    if re.search(r'\(\d+\)', title):
+                        score -= 10
+                    
+                    # Strong penalty for short videos (likely ads)
+                    duration = getattr(self, 'video_durations', {}).get(url, '')
+                    if duration:
+                        # Parse duration to check if it's less than 30 seconds
+                        if self._is_short_video(duration):
+                            score -= 30  # Heavy penalty for short videos
+                    
+                    scored_videos.append((score, url, title))
                 
-                # Sort by score and return the best one
+                # Sort by score and return the best one above threshold
                 scored_videos.sort(key=lambda x: x[0], reverse=True)
-                if scored_videos and scored_videos[0][0] > 0:
+                if scored_videos and scored_videos[0][0] > 5:  # Higher threshold
                     return scored_videos[0][1]
             
             return None

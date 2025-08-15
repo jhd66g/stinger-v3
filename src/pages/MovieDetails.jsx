@@ -101,6 +101,8 @@ const MovieDetails = () => {
                       const getServiceUrl = (service, movieTitle, year) => {
                         const titleQuery = encodeURIComponent(movieTitle.replace(/\s+/g, '+'))
                         switch(service.toLowerCase()) {
+                          case 'amazon prime':
+                            return 'https://www.amazon.com/gp/video/storefront'
                           case 'netflix':
                             return `https://www.netflix.com/search?q=${encodeURIComponent(movieTitle)}`
                           case 'disney+':

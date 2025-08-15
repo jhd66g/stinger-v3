@@ -61,7 +61,7 @@ const Filters = () => {
     setFilters({
       services: [],
       genres: [],
-      yearRange: [1900, new Date().getFullYear() + 1],
+      yearRange: [1900, new Date().getFullYear()],
       ratingRange: [0, 100]
     })
   }

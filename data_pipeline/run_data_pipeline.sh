@@ -33,18 +33,22 @@ source venv/bin/activate
 echo "Step 4: Running data pipeline..."
 ./data_pipeline.sh
 
-# Step 5: Return to project root and add changes
-echo "Step 5: Adding changes to git..."
+# Step 5: Build project
+echo "Step 5: Building project..."
 cd "$PROJECT_DIR"
+npm run build
+
+# Step 6: Return to project root and add changes
+echo "Step 6: Adding changes to git..."
 git add .
 
-# Step 6: Commit with timestamp
-echo "Step 6: Committing changes..."
+# Step 7: Commit with timestamp
+echo "Step 7: Committing changes..."
 timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 git commit -m "data update $timestamp"
 
-# Step 7: Push changes
-echo "Step 7: Pushing to remote..."
+# Step 8: Push changes
+echo "Step 8: Pushing to remote..."
 git push origin main
 
 echo ""

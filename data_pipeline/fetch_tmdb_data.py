@@ -34,6 +34,7 @@ class TMDBDataFetcher:
         
         # Streaming service provider IDs from TMDB
         self.providers = {
+            "Amazon Prime": 9,
             "Netflix": 8,
             "Disney+": 337,
             "Hulu": 15,

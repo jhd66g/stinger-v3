@@ -27,15 +27,53 @@
   background-color: var(--primary-color);
   border-bottom: 1px solid var(--border-color);
   z-index: 1000;
-  height: 60px;
+  min-height: 60px;
+  height: auto;
 }
 
 .header__content {
   display: flex;
+  flex-direction: column;
+  min-height: 60px;
+  padding: 0 var(--spacing-md);
+}
+
+.header__top {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 100%;
-  padding: 0 var(--spacing-md);
+  height: 60px;
+  width: 100%;
+}
+
+.header__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) 0;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .header__bottom {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    align-items: stretch;
+  }
+  
+  .header__sort-controls {
+    justify-content: center;
+  }
+  
+  .header__search {
+    margin-left: 0 !important;
+  }
+  
+  .header__search-input {
+    width: 100% !important;
+  }
 }
 
 .header__left {
@@ -668,6 +706,12 @@
   color: #E50914;
 }
 
+.filter-checkbox[data-service="Amazon Prime"]:hover,
+.filter-checkbox[data-service="Amazon Prime"]:hover label,
+.filter-checkbox[data-service="Amazon Prime"] input[type="checkbox"]:checked + label {
+  color: #00A8E1;
+}
+
 .filter-checkbox[data-service="Paramount+"]:hover,
 .filter-checkbox[data-service="Paramount+"]:hover label,
 .filter-checkbox[data-service="Paramount+"] input[type="checkbox"]:checked + label {
@@ -1225,6 +1269,10 @@
   color: #FFFFFF !important;
 }
 
+.about .streaming-link.amazon-prime:hover {
+  color: #00A8E1 !important;
+}
+
 .about .streaming-link.peacock:hover {
   background: linear-gradient(45deg, #FF6B35, #F7931E, #FFD23F, #009739, #0099CC, #9A4C95) !important;
   -webkit-background-clip: text !important;
@@ -1252,6 +1300,11 @@
 
 .streaming-service-link.netflix:hover {
   color: #E50914 !important;
+}
+
+.streaming-service-link.amazon:hover,
+.streaming-service-link.amazonprime:hover {
+  color: #00A8E1 !important;
 }
 
 .streaming-service-link.disney:hover {

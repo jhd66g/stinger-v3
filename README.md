@@ -51,7 +51,7 @@ npm run preview
 
 ## Features
 
-- **Streaming Service Filters**: Netflix, Disney+, Hulu, HBO Max, Paramount+, Apple TV+, Peacock
+- **Streaming Service Filters**: Amazon Prime, Netflix, Disney+, Hulu, HBO Max, Paramount+, Apple TV+, Peacock
 - **Advanced Search**: Search by title, actor, director, or keywords
 - **Genre & Year Filters**: Find movies by genre and release year range
 - **Rating Filters**: Filter by Rotten Tomatoes ratings (0-100%)

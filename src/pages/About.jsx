@@ -9,6 +9,7 @@ const About = () => {
           <p>
             <strong><em>SOMETHING TO STREAM</em></strong> is a fast, easy-to-use website that helps you find where to stream your favorite movies. 
             It aggregates the libraries of streaming services like{' '}
+            <a href="https://www.amazon.com/gp/video/storefront" className="streaming-link amazon-prime" target="_blank" rel="noopener noreferrer">Amazon Prime</a>,{' '}
             <a href="https://tv.apple.com" className="streaming-link apple-tv" target="_blank" rel="noopener noreferrer">Apple TV+</a>,{' '}
             <a href="https://www.disneyplus.com" className="streaming-link disney-plus" target="_blank" rel="noopener noreferrer">Disney+</a>,{' '}
             <a href="https://www.max.com" className="streaming-link hbo-max" target="_blank" rel="noopener noreferrer">HBO Max</a>,{' '}
