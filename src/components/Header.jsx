@@ -46,69 +46,68 @@ const Header = () => {
             <h1>SOMETHING TO STREAM</h1>
           </Link>
         </div>
-        
-        <div className="header__right">
-          {isDetailsOrAboutPage ? (
-            <button 
-              onClick={() => navigate(-1)} 
-              className="header__nav-link"
-            >
-              ← Back
-            </button>
-          ) : (
-            <Link to="/about" className="header__nav-link">
-              About
-            </Link>
-          )}
-          
-          {isHomePage && (
-            <>
-              <div className="header__sort-controls">
-                <div className="header__sort-dropdown">
-                  <button 
-                    className="header__sort-select"
-                  >
-                    {sortOptions.find(option => option.value === sortBy)?.label}
-                  </button>
-                  <div className="header__sort-dropdown-menu">
-                    {sortOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => handleSortChange(option.value)}
-                        className={`header__sort-dropdown-item ${sortBy === option.value ? 'active' : ''}`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+        <div className="header__options">
+          <div className="header__right">
+            {isDetailsOrAboutPage ? (
+              <button 
+                onClick={() => navigate(-1)} 
+                className="header__nav-link"
+              >
+                ← Back
+              </button>
+            ) : (
+              <Link to="/about" className="header__nav-link">
+                About
+              </Link>
+            )}
+            {isHomePage && (
+              <>
+                <div className="header__sort-controls">
+                  <div className="header__sort-dropdown">
+                    <button 
+                      className="header__sort-select"
+                    >
+                      {sortOptions.find(option => option.value === sortBy)?.label}
+                    </button>
+                    <div className="header__sort-dropdown-menu">
+                      {sortOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => handleSortChange(option.value)}
+                          className={`header__sort-dropdown-item ${sortBy === option.value ? 'active' : ''}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <button 
-                  onClick={handleSortOrderToggle}
-                  className="header__sort-button"
-                >
-                  {sortOrder === 'asc' ? '↑' : '↓'}
-                </button>
-              </div>
-              
-              <div className="header__search">
-                <input
-                  type="text"
-                  placeholder="Search movies..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="header__search-input"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="header__search-clear"
+                  <button 
+                    onClick={handleSortOrderToggle}
+                    className="header__sort-button"
                   >
-                    ×
+                    {sortOrder === 'asc' ? '↑' : '↓'}
                   </button>
-                )}
-              </div>
-            </>
-          )}
+                </div>
+                <div className="header__search">
+                  <input
+                    type="text"
+                    placeholder="Search movies..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="header__search-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="header__search-clear"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Fetch movie data from TMDB API for multiple streaming services.
-This script collects movies available on Netflix, Disney+, Hulu, Max, Paramount+, and Apple TV+.
+This script collects movies available on Netflix, Disney+, Hulu, Max, Paramount+, Apple TV+, and Amazon Prime.
 Highly parallelized for better performance.
 """
 
@@ -40,7 +40,8 @@ class TMDBDataFetcher:
             "HBO Max": 1899,
             "Paramount+": 531,
             "Apple TV+": 350,
-            "Peacock": 386
+            "Peacock": 386,
+            "Amazon Prime": 9
         }
         
         self.movies = {}
