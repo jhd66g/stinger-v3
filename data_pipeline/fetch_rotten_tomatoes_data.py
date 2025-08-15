@@ -114,146 +114,27 @@ class RottenTomatoesDataFetcher:
     def search_movie(self, title: str, year: int) -> Dict[str, Any]:
         """Search for a movie on Rotten Tomatoes using web scraping."""
         try:
-            # Skip movies with only the most problematic characters
-            if any(char in title for char in ['#', '@']):
-                return {"tomatometer": 0, "audience": 0, "title": "", "year": 0}
+            # Remove all non-alphanumeric characters, replace spaces with underscores, collapse multiple underscores
+            cleaned_title = re.sub(r'[^A-Za-z0-9 ]+', '', title)
+            cleaned_title = re.sub(r'\s+', '_', cleaned_title)
+            cleaned_title = re.sub(r'_+', '_', cleaned_title).strip('_')
+            cleaned_title_year = f"{cleaned_title}_{year}"
+
+            possible_urls = [
+                f"https://www.rottentomatoes.com/m/{cleaned_title}",
+                f"https://www.rottentomatoes.com/m/{cleaned_title_year}"
+            ]
             
-            # Clean and format title for URL - more comprehensive patterns
-            clean_title = re.sub(r'[^\w\s-]', '', title).strip()
-            url_title = re.sub(r'\s+', '_', clean_title.lower())
-            
-            # Handle articles at the beginning (The, A, An) - RT often drops these
-            url_title_no_articles = re.sub(r'^(the_|a_|an_)', '', url_title)
-            
-            # Additional variations for better matching
-            url_title_compact = re.sub(r'_+', '_', url_title.replace('_the_', '_').replace('_a_', '_').replace('_an_', '_')).strip('_')
-            url_title_no_spaces = title.lower().replace(' ', '').replace(':', '').replace("'", '').replace('-', '').replace('.', '')
-            
-            # Special handling for complex titles (colons, subtitles, etc.)
-            special_cases = {}
-            title_lower = title.lower()
-            
-            # Handle titles with colons - create versions without subtitle
-            if ':' in title:
-                main_title = title.split(':')[0].strip()
-                main_url = re.sub(r'[^\w\s-]', '', main_title.lower())
-                main_url = re.sub(r'\s+', '_', main_url)
-                special_cases[main_url] = f"{main_url}_{year}"
-            
-            # Handle titles with common patterns
-            if ' - ' in title:
-                main_title = title.split(' - ')[0].strip()
-                main_url = re.sub(r'[^\w\s-]', '', main_title.lower())
-                main_url = re.sub(r'\s+', '_', main_url)
-                special_cases[main_url] = f"{main_url}_{year}"
-            
-            # Handle episode/part patterns (like Star Wars episodes)
-            if 'episode' in title.lower() or 'part' in title.lower():
-                # Convert episode patterns to more generic forms
-                if 'episode iii' in title.lower():
-                    alt_title = re.sub(r'episode\s+iii', 'episode_3', title.lower(), flags=re.IGNORECASE)
-                elif 'episode ii' in title.lower():
-                    alt_title = re.sub(r'episode\s+ii', 'episode_2', title.lower(), flags=re.IGNORECASE)
-                elif 'episode i' in title.lower() and 'episode iv' not in title.lower():
-                    alt_title = re.sub(r'episode\s+i(?![ivx])', 'episode_1', title.lower(), flags=re.IGNORECASE)
-                elif 'episode iv' in title.lower():
-                    alt_title = re.sub(r'episode\s+iv', 'episode_4', title.lower(), flags=re.IGNORECASE)
-                elif 'episode v' in title.lower() and 'episode vi' not in title.lower():
-                    alt_title = re.sub(r'episode\s+v(?![i])', 'episode_5', title.lower(), flags=re.IGNORECASE)
-                elif 'episode vi' in title.lower():
-                    alt_title = re.sub(r'episode\s+vi', 'episode_6', title.lower(), flags=re.IGNORECASE)
-                else:
-                    alt_title = title.lower()
-                
-                if alt_title != title.lower():
-                    alt_url = re.sub(r'[^\w\s-]', '', alt_title)
-                    alt_url = re.sub(r'\s+', '_', alt_url)
-                    special_cases[alt_url] = f"{alt_url}_{year}"
-            
-            # Try comprehensive URL patterns for Rotten Tomatoes
-            possible_urls = []
-            
-            # Add special cases first (highest priority)
-            for special_url in special_cases.keys():
-                possible_urls.extend([
-                    f"https://www.rottentomatoes.com/m/{special_url}",
-                    f"https://www.rottentomatoes.com/m/{special_cases[special_url]}"
-                ])
-            
-            # Standard patterns
-            possible_urls.extend([
-                # Try without leading articles first (most common pattern)
-                f"https://www.rottentomatoes.com/m/{url_title_no_articles}",
-                f"https://www.rottentomatoes.com/m/{url_title_no_articles}_{year}",
-                # Then try with articles
-                f"https://www.rottentomatoes.com/m/{url_title}",
-                f"https://www.rottentomatoes.com/m/{url_title}_{year}",
-                # Compact versions (remove extra underscores)
-                f"https://www.rottentomatoes.com/m/{url_title_compact}",
-                f"https://www.rottentomatoes.com/m/{url_title_compact}_{year}",
-                # No spaces at all
-                f"https://www.rottentomatoes.com/m/{url_title_no_spaces}",
-                # Other variations
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '')}",
-                f"https://www.rottentomatoes.com/m/{url_title_no_articles.replace('_', '')}",
-                f"https://www.rottentomatoes.com/m/{url_title.replace('_', '-')}",
-                f"https://www.rottentomatoes.com/m/{url_title_no_articles.replace('_', '-')}",
-                # Legacy patterns
-                f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '_').replace(':', '').replace("'", '')}",
-                f"https://www.rottentomatoes.com/m/{title.lower().replace(' ', '').replace(':', '').replace("'", '')}"
-            ])
-            
-            # Add more sophisticated patterns for complex titles
-            if len(title.split()) > 2:  # For longer titles
-                # Try with just first 2-3 words
-                short_title = ' '.join(title.split()[:2])
-                short_url = re.sub(r'[^\w\s-]', '', short_title.lower())
-                short_url = re.sub(r'\s+', '_', short_url)
-                possible_urls.extend([
-                    f"https://www.rottentomatoes.com/m/{short_url}_{year}",
-                    f"https://www.rottentomatoes.com/m/{short_url}"
-                ])
-                
-                # Try with first 3 words for very long titles
-                if len(title.split()) > 4:
-                    med_title = ' '.join(title.split()[:3])
-                    med_url = re.sub(r'[^\w\s-]', '', med_title.lower())
-                    med_url = re.sub(r'\s+', '_', med_url)
-                    possible_urls.extend([
-                        f"https://www.rottentomatoes.com/m/{med_url}_{year}",
-                        f"https://www.rottentomatoes.com/m/{med_url}"
-                    ])
-            
-            # Add patterns without common stop words
-            stop_words = ['the', 'a', 'an', 'of', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with']
-            filtered_words = [word for word in title.split() if word.lower() not in stop_words]
-            if len(filtered_words) < len(title.split()):
-                filtered_title = ' '.join(filtered_words)
-                filtered_url = re.sub(r'[^\w\s-]', '', filtered_title.lower())
-                filtered_url = re.sub(r'\s+', '_', filtered_url)
-                possible_urls.extend([
-                    f"https://www.rottentomatoes.com/m/{filtered_url}_{year}",
-                    f"https://www.rottentomatoes.com/m/{filtered_url}"
-                ])
-            
-            # Remove duplicates while preserving order
-            seen = set()
-            unique_urls = []
             for url in possible_urls:
-                if url not in seen:
-                    seen.add(url)
-                    unique_urls.append(url)
-            
-            for url in unique_urls:
                 try:
                     # Use rate limiting like TMDB fetcher
                     self._rate_limit()
-                    
                     # Use fresh headers for each request
                     headers = self._get_headers()
                     response = self.session.get(url, headers=headers, timeout=(5, 10), allow_redirects=True)
-                    
+                    print(f"Trying URL: {url} - Status: {response.status_code}")
                     if response.status_code == 200:
+                        print(f"SUCCESS: {url}")
                         soup = BeautifulSoup(response.content, 'html.parser')
                         
                         # Multiple strategies to extract scores

@@ -102,6 +102,13 @@ class TrailerLinkFetcher:
                         title = title_matches[i] if i < len(title_matches) else ""
                         video_links.append(video_url)
                         video_titles.append(title.lower())
+                    
+                    # Try to extract video duration from script (if available)
+                    duration_match = re.search(r'"lengthSeconds":"(\d+)"', script.string)
+                    duration_seconds = int(duration_match.group(1)) if duration_match else None
+                    if duration_seconds is not None and duration_seconds < 30:
+                        continue  # Skip ads (videos <30s)
+                    
                     break
             
             # Method 2: Look for anchor tags with /watch? URLs

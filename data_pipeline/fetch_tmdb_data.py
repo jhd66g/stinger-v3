@@ -41,7 +41,7 @@ class TMDBDataFetcher:
             "Paramount+": 531,
             "Apple TV+": 350,
             "Peacock": 386,
-            "Amazon Prime": 9
+            #"Amazon Prime": 9
         }
         
         self.movies = {}
