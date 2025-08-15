@@ -114,8 +114,9 @@ class RottenTomatoesDataFetcher:
     def search_movie(self, title: str, year: int) -> Dict[str, Any]:
         """Search for a movie on Rotten Tomatoes using web scraping."""
         try:
-            # Remove all non-alphanumeric characters, replace spaces with underscores, collapse multiple underscores
-            cleaned_title = re.sub(r'[^A-Za-z0-9 ]+', '', title)
+            cleaned_title = title.replace('-', ' ')
+            cleaned_title = cleaned_title.replace('&', 'and')
+            cleaned_title = re.sub(r'[^A-Za-z0-9 ]+', '', cleaned_title)
             cleaned_title = re.sub(r'\s+', '_', cleaned_title)
             cleaned_title = re.sub(r'_+', '_', cleaned_title).strip('_')
             cleaned_title_year = f"{cleaned_title}_{year}"
