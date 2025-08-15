@@ -160,11 +160,6 @@ class TrailerLinkFetcher:
                 # Score each video based on relevance
                 scored_videos = []
                 for i, (url, title) in enumerate(zip(video_links, video_titles)):
-                    # First check: exclude short videos (likely ads) completely
-                    duration = getattr(self, 'video_durations', {}).get(url, '')
-                    if duration and self._is_short_video(duration):
-                        continue  # Skip short videos entirely
-                    
                     score = 0
                     title_words = title.split()
                     
@@ -201,6 +196,13 @@ class TrailerLinkFetcher:
                     # Penalty for numbers in parentheses (often fan cuts)
                     if re.search(r'\(\d+\)', title):
                         score -= 10
+                    
+                    # Strong penalty for short videos (likely ads)
+                    duration = getattr(self, 'video_durations', {}).get(url, '')
+                    if duration:
+                        # Parse duration to check if it's less than 30 seconds
+                        if self._is_short_video(duration):
+                            score -= 30  # Heavy penalty for short videos
                     
                     scored_videos.append((score, url, title))
                 
