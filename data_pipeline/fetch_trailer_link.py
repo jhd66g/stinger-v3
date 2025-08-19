@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Fetch YouTube trailer links for movies by manually scraping YouTube search results.
-This script searches YouTube for movie trailers using web scraping with parallelization.
+Fetch YouTube trailer links for movies by scraping YouTube search results.
+This version parses ytInitialData and filters *per video* to avoid ads/shorts.
 """
 
 import os
@@ -22,6 +22,7 @@ import re
 # Load environment variables
 load_dotenv()
 
+
 class TrailerLinkFetcher:
     def __init__(self, max_workers=20):
         self.max_workers = max_workers
@@ -30,27 +31,63 @@ class TrailerLinkFetcher:
         self.min_request_interval = 0.05
         self.success_count = 0
         self.movies_lock = threading.Lock()
-        
+
         # Create session with retry strategy
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
             backoff_factor=0.5,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET"]
+            allowed_methods=["GET"],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
-        
+
         # User agents to avoid detection
         self.user_agents = [
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         ]
         self.current_ua_index = 0
-    
+
+        # Filtering preferences (kept local to the class for minimal changes)
+        self._bad_title_keywords = {
+            "ad",
+            "advertisement",
+            "commercial",
+            "review",
+            "reaction",
+            "breakdown",
+            "explained",
+            "clip",
+            "scene",
+            "ending",
+            "fan edit",
+            "fan-made",
+            "music video",
+        }
+        self._preferred_channel_hints = {
+            "pictures",
+            "studios",
+            "films",
+            "entertainment",
+            "movieclips",
+            "trailers",
+            "warner bros",
+            "paramount",
+            "sony",
+            "universal",
+            "lionsgate",
+            "a24",
+            "netflix",
+            "hulu",
+            "prime video",
+            "disney",
+            "marvel",
+        }
+
     def _rate_limit(self):
         """Simple rate limiting."""
         current_time = time.time()
@@ -58,194 +95,248 @@ class TrailerLinkFetcher:
         if elapsed < self.min_request_interval:
             time.sleep(self.min_request_interval - elapsed)
         self.last_request_time = time.time()
-    
+
     def _get_next_user_agent(self):
         """Rotate user agents."""
         ua = self.user_agents[self.current_ua_index]
         self.current_ua_index = (self.current_ua_index + 1) % len(self.user_agents)
         return ua
-        
+
+    def _extract_ytinitialdata(self, html: str) -> Optional[dict]:
+        """Extract the ytInitialData JSON blob from the HTML."""
+        # Two common patterns YouTube uses
+        for token in ("var ytInitialData = ", 'window["ytInitialData"] = '):
+            i = html.find(token)
+            if i != -1:
+                i += len(token)
+                j = html.find(";</script>", i)
+                if j != -1:
+                    blob = html[i:j].strip()
+                    try:
+                        return json.loads(blob)
+                    except Exception:
+                        return None
+        return None
+
+    def _collect_video_candidates(self, initial: dict) -> List[dict]:
+        """Walk ytInitialData structure to collect non-promoted video renderers with metadata."""
+        out: List[dict] = []
+
+        def dig(node: Any):
+            if isinstance(node, dict):
+                # Skip ads/promoted
+                if "promotedVideoRenderer" in node:
+                    return
+                if "videoRenderer" in node:
+                    vr = node["videoRenderer"]
+                    vid = vr.get("videoId")
+                    if not vid:
+                        return
+
+                    # Title
+                    title_runs = vr.get("title", {}).get("runs", [])
+                    title = "".join(r.get("text", "") for r in title_runs).strip().lower()
+
+                    # Duration (parse "hh:mm:ss" or "mm:ss")
+                    length_txt = vr.get("lengthText", {}).get("simpleText") or ""
+                    dur = None
+                    if length_txt:
+                        parts = [int(p) for p in length_txt.split(":")]
+                        if len(parts) == 3:
+                            dur = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                        elif len(parts) == 2:
+                            dur = parts[0] * 60 + parts[1]
+
+                    # Channel
+                    owner_runs = vr.get("ownerText", {}).get("runs", [])
+                    channel = "".join(r.get("text", "") for r in owner_runs).strip().lower()
+
+                    out.append(
+                        {"videoId": vid, "title": title, "duration": dur, "channel": channel}
+                    )
+                else:
+                    for v in node.values():
+                        dig(v)
+            elif isinstance(node, list):
+                for v in node:
+                    dig(v)
+
+        dig(initial)
+        return out
+
+    def _score_candidate(self, c: dict, movie_title_lower: str, year: int) -> float:
+        """Score a candidate trailer; return -inf-like on hard-fail."""
+        title = c.get("title", "")
+        channel = c.get("channel", "")
+        dur = c.get("duration") or 0
+
+        # Hard filters
+        if any(bad in title for bad in self._bad_title_keywords):
+            return -1e9
+        if dur and (dur < 45 or dur > 420):  # 45s–7m typical trailer window
+            return -1e9
+
+        score = 0.0
+        if "trailer" in title:
+            score += 10
+        if "official" in title:
+            score += 6
+        if "teaser" in title:
+            score += 3
+
+        if movie_title_lower in title:
+            score += 8
+        if str(year) in title:
+            score += 4
+
+        if any(hint in channel for hint in self._preferred_channel_hints):
+            score += 3
+
+        # Duration sweet-spot preference ~2–3.5 minutes
+        if 110 <= dur <= 210:
+            score += 2
+
+        return score
+
+    @staticmethod
+    def _is_clean_watch_url(url: str) -> bool:
+        """Avoid ad/redirect URLs; we only want straight watch links."""
+        bad = ("googleadservices", "adurl=", "/redirect?")
+        return ("watch?v=" in url) and not any(b in url for b in bad)
+
+    # ----------------------------
+    # REPLACED: search_trailer()
+    # ----------------------------
     def search_trailer(self, movie_title: str, year: int) -> Optional[str]:
-        """Search for movie trailer on YouTube by scraping search results."""
+        """Search YouTube and return the best trailer link by parsing ytInitialData."""
         try:
             self._rate_limit()
-            
-            # Create search query: "movie title year official trailer"
+
             query = f"{movie_title} {year} official trailer"
-            search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
-            
+            # 'sp' filters to videos; keeps results saner without using the Data API.
+            search_url = (
+                f"https://www.youtube.com/results?search_query={quote_plus(query)}&sp=EgIQAQ%3D%3D"
+            )
+
             headers = {
-                'User-Agent': self._get_next_user_agent(),
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                "User-Agent": self._get_next_user_agent(),
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             }
-            
-            response = self.session.get(search_url, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Look for video links in the page
-            video_links = []
-            video_titles = []
-            
-            # Method 1: Find script tags with video data
-            script_tags = soup.find_all('script')
-            for script in script_tags:
-                if script.string and 'var ytInitialData' in script.string:
-                    # Extract video IDs and titles from the script content
-                    video_id_matches = re.findall(r'"videoId":"([^"]+)"', script.string)
-                    title_matches = re.findall(r'"title":{"runs":\[{"text":"([^"]+)"', script.string)
-                    
-                    for i, video_id in enumerate(video_id_matches[:10]):  # Check first 10
-                        video_url = f"https://www.youtube.com/watch?v={video_id}"
-                        title = title_matches[i] if i < len(title_matches) else ""
-                        video_links.append(video_url)
-                        video_titles.append(title.lower())
-                    
-                    # Try to extract video duration from script (if available)
-                    duration_match = re.search(r'"lengthSeconds":"(\d+)"', script.string)
-                    duration_seconds = int(duration_match.group(1)) if duration_match else None
-                    if duration_seconds is not None and duration_seconds < 30:
-                        continue  # Skip ads (videos <30s)
-                    
-                    break
-            
-            # Method 2: Look for anchor tags with /watch? URLs
-            if not video_links:
-                links = soup.find_all('a', href=re.compile(r'/watch\?v='))
-                for link in links[:10]:
-                    href = link.get('href')
-                    if href:
-                        full_url = urljoin('https://www.youtube.com', href)
-                        # Try to get title from aria-label or title attribute
-                        title = link.get('aria-label', '') or link.get('title', '')
-                        video_links.append(full_url)
-                        video_titles.append(title.lower())
-            
-            # Filter for actual trailers (prioritize official trailers)
-            if video_links:
-                movie_title_lower = movie_title.lower()
-                trailer_keywords = ['trailer', 'official', 'teaser']
-                bad_keywords = ['ad', 'advertisement', 'commercial', 'review', 'reaction', 'breakdown', 'explained']
-                
-                # Score each video based on relevance
-                scored_videos = []
-                for i, (url, title) in enumerate(zip(video_links, video_titles)):
-                    score = 0
-                    
-                    # Bonus for containing movie title
-                    if movie_title_lower in title:
-                        score += 10
-                    
-                    # Bonus for trailer keywords
-                    for keyword in trailer_keywords:
-                        if keyword in title:
-                            score += 5
-                    
-                    # Penalty for bad keywords
-                    for keyword in bad_keywords:
-                        if keyword in title:
-                            score -= 20
-                    
-                    # Bonus for position (earlier = better)
-                    score += (10 - i)
-                    
-                    scored_videos.append((score, url))
-                
-                # Sort by score and return the best one
-                scored_videos.sort(key=lambda x: x[0], reverse=True)
-                if scored_videos and scored_videos[0][0] > 0:
-                    return scored_videos[0][1]
-            
+
+            resp = self.session.get(search_url, headers=headers, timeout=12)
+            resp.raise_for_status()
+
+            initial = self._extract_ytinitialdata(resp.text)
+            if not initial:
+                return None
+
+            candidates = self._collect_video_candidates(initial)
+            if not candidates:
+                return None
+
+            mt = movie_title.lower()
+            scored = []
+            for c in candidates[:40]:  # only need the first page worth
+                s = self._score_candidate(c, mt, year)
+                if s > -1e8:  # passed hard filters
+                    scored.append((s, c))
+
+            if not scored:
+                return None
+
+            scored.sort(key=lambda x: x[0], reverse=True)
+            for _, c in scored:
+                url = f"https://www.youtube.com/watch?v={c['videoId']}"
+                if self._is_clean_watch_url(url):
+                    return url
+
             return None
-            
+
         except Exception as e:
             print(f"Error searching for {movie_title} ({year}): {e}")
             return None
-    
+
     def process_movie_batch(self, movies_batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Process a batch of movies for trailer links."""
         results = []
         for movie in movies_batch:
             try:
-                title = movie.get('title', '')
-                year = movie.get('release_date', '')[:4] if movie.get('release_date') else ''
-                
+                title = movie.get("title", "")
+                year = movie.get("release_date", "")[:4] if movie.get("release_date") else ""
+
                 if title and year:
                     trailer_url = self.search_trailer(title, int(year))
                     if trailer_url:
-                        if 'media' not in movie:
-                            movie['media'] = {}
-                        movie['media']['trailer_youtube'] = trailer_url
-                        
+                        if "media" not in movie:
+                            movie["media"] = {}
+                        movie["media"]["trailer_youtube"] = trailer_url
+
                         with self.movies_lock:
                             self.success_count += 1
-                
+
                 results.append(movie)
-                
+
             except Exception as e:
                 print(f"Error processing {movie.get('title', 'Unknown')}: {e}")
                 results.append(movie)
-        
+
         return results
-    
+
     def update_movie_trailers(self, movies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Update movie data with YouTube trailer links using parallel processing."""
         start_time = time.time()
         print(f"🎬 Starting trailer search for {len(movies)} movies...")
         print(f"   Using {self.max_workers} parallel workers")
-        
+
         # Split into batches
         batch_size = max(1, len(movies) // self.max_workers)
-        batches = [movies[i:i + batch_size] for i in range(0, len(movies), batch_size)]
-        
+        batches = [movies[i : i + batch_size] for i in range(0, len(movies), batch_size)]
+
         print(f"   Processing {len(batches)} batches (avg {batch_size} movies per batch)")
-        
+
         # Process batches in parallel
         all_results = []
-        
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_batch = {
-                executor.submit(self.process_movie_batch, batch): batch
-                for batch in batches
-            }
-            
+            future_to_batch = {executor.submit(self.process_movie_batch, batch): batch for batch in batches}
+
             progress_bar = tqdm(total=len(movies), desc="🎬 Fetching trailers", unit="movies")
-            
+
             for future in as_completed(future_to_batch):
                 batch = future_to_batch[future]
-                
+
                 try:
                     batch_results = future.result()
                     all_results.extend(batch_results)
-                    
+
                     progress_bar.update(len(batch_results))
-                    
+
                     elapsed_time = time.time() - start_time
                     rate = len(all_results) / elapsed_time if elapsed_time > 0 else 0
                     progress_bar.set_description(f"🎬 Fetching trailers ({rate:.1f} movies/sec)")
-                    
+
                 except Exception as e:
                     print(f"Batch processing error: {e}")
                     # Add error placeholders for the entire batch
                     all_results.extend(batch)
                     progress_bar.update(len(batch))
-            
+
             progress_bar.close()
-        
+
         # Final stats
         elapsed_time = time.time() - start_time
         rate = len(all_results) / elapsed_time
-        
+
         print(f"\n🎬 TRAILER SEARCH COMPLETE")
         print(f"   Total time: {elapsed_time:.1f} seconds")
         print(f"   Rate: {rate:.1f} movies per second")
         print(f"   Total processed: {len(all_results)}")
         print(f"   Successfully found trailers: {self.success_count}")
         print(f"   Success rate: {self.success_count/len(all_results)*100:.1f}%")
-        
+
         return all_results
+
 
 def main():
     """Main function to update movie data with trailer links."""
@@ -257,41 +348,42 @@ def main():
             if not os.path.exists(input_file):
                 print(f"Error: No movie data file found. Run fetch_tmdb_data.py first.")
                 return 1
-        
-        with open(input_file, 'r', encoding='utf-8') as f:
+
+        with open(input_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-        
-        movies = data.get('movies', [])
+
+        movies = data.get("movies", [])
         if not movies:
             print("No movies found in data.")
             return 1
-        
+
         print(f"Processing {len(movies)} movies...")
-        
+
         # Update with trailer links using parallelization
         fetcher = TrailerLinkFetcher(max_workers=20)
         updated_movies = fetcher.update_movie_trailers(movies)
-        
+
         # Save updated data
-        data['movies'] = updated_movies
-        data['last_updated'] = time.strftime("%Y-%m-%d %H:%M:%S")
-        
+        data["movies"] = updated_movies
+        data["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
         output_file = "movie_data.json"
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        
+
         print(f"\nFinal data saved to {output_file}")
         print(f"Total movies: {len(updated_movies)}")
-        
+
         # Count movies with trailers
-        movies_with_trailers = sum(1 for m in updated_movies if m.get('media', {}).get('trailer_youtube'))
+        movies_with_trailers = sum(1 for m in updated_movies if m.get("media", {}).get("trailer_youtube"))
         print(f"Movies with trailers: {movies_with_trailers}")
-        
+
     except Exception as e:
         print(f"Error: {e}")
         return 1
-    
+
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

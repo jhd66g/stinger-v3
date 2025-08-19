@@ -13,7 +13,7 @@ const useMovieStore = create(
       filters: {
         services: [],
         genres: [],
-        yearRange: [1900, new Date().getFullYear() + 1],
+        yearRange: [1900, 2025],
         ratingRange: [0, 100]
       },
       
